@@ -3,7 +3,9 @@ import * as cors from "cors";
 import * as cookieParser from "cookie-parser";
 import * as session from "express-session";
 import * as dotenv from "dotenv";
-import { pool, sessionStore } from "./config/database";
+import { sessionStore } from "./config/database";
+
+import FormItemTypesRouter from "./routes/formItemTypes"
 
 dotenv.config();
 
@@ -19,8 +21,8 @@ app.use(
   })
 );
 
-app.use(cookieParser(process.env.SESSION_SECRET))
-app.use(express.json())
+app.use(cookieParser(process.env.SESSION_SECRET));
+app.use(express.json());
 
 app.use(
   session({
@@ -38,23 +40,8 @@ app.use(
   })
 );
 
-async function testPool() {
-  try {
-    const result = await pool.query('select * from field_data_types')
-    console.log(result)
-  } catch (error) {
-    console.error(error);
-  }
-}
-
-testPool()
-
-
-app.get("/", (req, res) => {
-  
-  res.send("Hello world");
-});
+app.use('/form-item-types', FormItemTypesRouter)
 
 const port = 3001;
 
-app.listen(port, () => console.log("Server listening at port 3000"));
+app.listen(port, () => console.log("Server listening at port 3001"));
