@@ -40,7 +40,7 @@ app.use(
   })
 );
 
-app.use('/form-item-types', FormItemTypesRouter)
+app.use('/form', FormItemTypesRouter)
 
 const port = 3001;
 

@@ -35,12 +35,20 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
+var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
+    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
+        if (ar || !(i in from)) {
+            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
+            ar[i] = from[i];
+        }
+    }
+    return to.concat(ar || Array.prototype.slice.call(from));
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 var express = require("express");
 var database_js_1 = require("../config/database.js");
 var router = express.Router();
-console.log("Swag");
-router.get("/", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+router.get("/item-types", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
     var result, error_1;
     return __generator(this, function (_a) {
         switch (_a.label) {
@@ -51,12 +59,40 @@ router.get("/", function (req, res) { return __awaiter(void 0, void 0, void 0, f
                 result = _a.sent();
                 if (!result)
                     throw new Error("There was an error fetching form item data types");
-                console.log(result.rows);
                 res.send(result.rows);
                 return [3 /*break*/, 3];
             case 2:
                 error_1 = _a.sent();
                 console.log(error_1);
+                return [3 /*break*/, 3];
+            case 3: return [2 /*return*/];
+        }
+    });
+}); });
+router.get("/item-type-properties", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+    var result, hashmap_1, error_2;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0:
+                _a.trys.push([0, 2, , 3]);
+                return [4 /*yield*/, database_js_1.pool.query("\n      select * from form_item_properties \n    ")];
+            case 1:
+                result = _a.sent();
+                if (!result)
+                    throw new Error("There was an error fetching form item type properties");
+                hashmap_1 = {};
+                result.rows.forEach(function (row) {
+                    if (!hashmap_1[row.data_type_id])
+                        hashmap_1[row.data_type_id] = row;
+                    else {
+                        hashmap_1[row.data_type_id] = __spreadArray(__spreadArray([], hashmap_1[row.data_type_id], true), [row], false);
+                    }
+                });
+                res.send(hashmap_1);
+                return [3 /*break*/, 3];
+            case 2:
+                error_2 = _a.sent();
+                console.log(error_2);
                 return [3 /*break*/, 3];
             case 3: return [2 /*return*/];
         }

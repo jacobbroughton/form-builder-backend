@@ -30,6 +30,6 @@ app.use(session({
         sameSite: process.env.NODE_ENV === "production" ? "none" : false,
     },
 }));
-app.use('/form-item-types', formItemTypes_1.default);
+app.use('/form', formItemTypes_1.default);
 var port = 3001;
 app.listen(port, function () { return console.log("Server listening at port 3001"); });
