@@ -1,4 +1,15 @@
 "use strict";
+var __assign = (this && this.__assign) || function () {
+    __assign = Object.assign || function(t) {
+        for (var s, i = 1, n = arguments.length; i < n; i++) {
+            s = arguments[i];
+            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+                t[p] = s[p];
+        }
+        return t;
+    };
+    return __assign.apply(this, arguments);
+};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -102,6 +113,7 @@ router.get("/item-type-property-options", function (req, res) { return __awaiter
                 result = _a.sent();
                 if (!result)
                     throw new Error("There was an error fetching form item type properties");
+                result.rows = result.rows.map(function (row) { return (__assign(__assign({}, row), { checked: false })); });
                 data = hashify(result.rows, "property_id");
                 res.send(data);
                 return [3 /*break*/, 3];

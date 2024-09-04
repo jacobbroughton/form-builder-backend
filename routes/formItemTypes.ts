@@ -41,6 +41,8 @@ router.get("/item-type-property-options", async (req, res): Promise<void> => {
 
     if (!result) throw new Error("There was an error fetching form item type properties");
 
+    result.rows = result.rows.map((row) => ({ ...row, checked: false }));
+
     const data = hashify(result.rows, "property_id");
 
     res.send(data);
