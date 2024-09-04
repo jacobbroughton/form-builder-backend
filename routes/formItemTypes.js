@@ -91,6 +91,9 @@ router.get("/item-type-properties", function (req, res) { return __awaiter(void 
                 result = _a.sent();
                 if (!result)
                     throw new Error("There was an error fetching form item type properties");
+                result.rows = result.rows.map(function (row) { return (__assign(__assign({}, row), (row.property_type !== 'radio' && {
+                    value: ''
+                }))); });
                 data = hashify(result.rows, "input_type_id");
                 res.send(data);
                 return [3 /*break*/, 3];
