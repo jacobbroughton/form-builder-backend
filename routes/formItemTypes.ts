@@ -1,12 +1,13 @@
 import * as express from "express";
 import { pool } from "../config/database.js";
+import { HashmapType } from "../lib/types.js";
 
 const router = express.Router();
 
 router.get("/item-types", async (req, res): Promise<void> => {
   try {
     const result = await pool.query(`
-      select * from form_item_data_types  
+      select * from input_types  
     `);
 
     if (!result) throw new Error("There was an error fetching form item data types");
@@ -19,23 +20,48 @@ router.get("/item-types", async (req, res): Promise<void> => {
 router.get("/item-type-properties", async (req, res): Promise<void> => {
   try {
     const result = await pool.query(`
-      select * from form_item_properties 
+      select * from input_properties 
     `);
 
     if (!result) throw new Error("There was an error fetching form item type properties");
 
-    let hashmap = {};
+    const data = hashify(result.rows, "input_type_id");
 
-    result.rows.forEach((row) => {
-      if (!hashmap[row.data_type_id]) hashmap[row.data_type_id] = row;
-      else {
-        hashmap[row.data_type_id] = [...hashmap[row.data_type_id], row]
-      }
-    });
-    res.send(hashmap);
+    res.send(data);
   } catch (error) {
     console.log(error);
   }
 });
+
+router.get("/item-type-property-options", async (req, res): Promise<void> => {
+  try {
+    const result = await pool.query(`
+      select * from input_property_options
+    `);
+
+    if (!result) throw new Error("There was an error fetching form item type properties");
+
+    const data = hashify(result.rows, "property_id");
+
+    res.send(data);
+  } catch (error) {
+    console.log(error);
+  }
+});
+
+function hashify(rows: object[], key: string) {
+  {
+    const hashmap: HashmapType = {};
+
+    rows.forEach((row) => {
+      if (!hashmap[row[key as keyof object]]) hashmap[row[key as keyof object]] = [row];
+      else {
+        hashmap[row[key as keyof object]] = [...hashmap[row[key as keyof object]], row];
+      }
+    });
+
+    return hashmap;
+  }
+}
 
 export default router;

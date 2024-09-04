@@ -54,7 +54,7 @@ router.get("/item-types", function (req, res) { return __awaiter(void 0, void 0,
         switch (_a.label) {
             case 0:
                 _a.trys.push([0, 2, , 3]);
-                return [4 /*yield*/, database_js_1.pool.query("\n      select * from form_item_data_types  \n    ")];
+                return [4 /*yield*/, database_js_1.pool.query("\n      select * from input_types  \n    ")];
             case 1:
                 result = _a.sent();
                 if (!result)
@@ -70,25 +70,18 @@ router.get("/item-types", function (req, res) { return __awaiter(void 0, void 0,
     });
 }); });
 router.get("/item-type-properties", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
-    var result, hashmap_1, error_2;
+    var result, data, error_2;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
                 _a.trys.push([0, 2, , 3]);
-                return [4 /*yield*/, database_js_1.pool.query("\n      select * from form_item_properties \n    ")];
+                return [4 /*yield*/, database_js_1.pool.query("\n      select * from input_properties \n    ")];
             case 1:
                 result = _a.sent();
                 if (!result)
                     throw new Error("There was an error fetching form item type properties");
-                hashmap_1 = {};
-                result.rows.forEach(function (row) {
-                    if (!hashmap_1[row.data_type_id])
-                        hashmap_1[row.data_type_id] = row;
-                    else {
-                        hashmap_1[row.data_type_id] = __spreadArray(__spreadArray([], hashmap_1[row.data_type_id], true), [row], false);
-                    }
-                });
-                res.send(hashmap_1);
+                data = hashify(result.rows, "input_type_id");
+                res.send(data);
                 return [3 /*break*/, 3];
             case 2:
                 error_2 = _a.sent();
@@ -98,4 +91,39 @@ router.get("/item-type-properties", function (req, res) { return __awaiter(void 
         }
     });
 }); });
+router.get("/item-type-property-options", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+    var result, data, error_3;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0:
+                _a.trys.push([0, 2, , 3]);
+                return [4 /*yield*/, database_js_1.pool.query("\n      select * from input_property_options\n    ")];
+            case 1:
+                result = _a.sent();
+                if (!result)
+                    throw new Error("There was an error fetching form item type properties");
+                data = hashify(result.rows, "property_id");
+                res.send(data);
+                return [3 /*break*/, 3];
+            case 2:
+                error_3 = _a.sent();
+                console.log(error_3);
+                return [3 /*break*/, 3];
+            case 3: return [2 /*return*/];
+        }
+    });
+}); });
+function hashify(rows, key) {
+    {
+        var hashmap_1 = {};
+        rows.forEach(function (row) {
+            if (!hashmap_1[row[key]])
+                hashmap_1[row[key]] = [row];
+            else {
+                hashmap_1[row[key]] = __spreadArray(__spreadArray([], hashmap_1[row[key]], true), [row], false);
+            }
+        });
+        return hashmap_1;
+    }
+}
 exports.default = router;
