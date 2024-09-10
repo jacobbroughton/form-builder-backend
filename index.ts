@@ -5,7 +5,7 @@ import * as session from "express-session";
 import * as dotenv from "dotenv";
 import { sessionStore } from "./config/database";
 
-import FormItemTypesRouter from "./routes/formItemTypes"
+import FormRouter from "./routes/form"
 
 dotenv.config();
 
@@ -40,7 +40,7 @@ app.use(
   })
 );
 
-app.use('/form', FormItemTypesRouter)
+app.use('/form', FormRouter)
 
 const port = 3001;
 

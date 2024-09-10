@@ -6,7 +6,7 @@ var cookieParser = require("cookie-parser");
 var session = require("express-session");
 var dotenv = require("dotenv");
 var database_1 = require("./config/database");
-var formItemTypes_1 = require("./routes/formItemTypes");
+var form_1 = require("./routes/form");
 dotenv.config();
 var app = express();
 var origins = ["http://localhost:3000"];
@@ -30,6 +30,6 @@ app.use(session({
         sameSite: process.env.NODE_ENV === "production" ? "none" : false,
     },
 }));
-app.use('/form', formItemTypes_1.default);
+app.use('/form', form_1.default);
 var port = 3001;
 app.listen(port, function () { return console.log("Server listening at port 3001"); });
