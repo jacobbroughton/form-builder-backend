@@ -211,13 +211,12 @@ router.put("/update-draft", function (req, res) { return __awaiter(void 0, void 
     });
 }); });
 router.post("/add-new-input-to-draft", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
-    var result1, createdInput_1, numCustomProperties_1, error_7;
+    var result1_1, createdInput_1, numCustomProperties_1, error_7;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
                 _a.trys.push([0, 2, , 3]);
-                console.log(req.body);
-                return [4 /*yield*/, database_js_1.pool.query("\n      with inserted as (\n        insert into user_created_inputs (\n          input_type_id,\n          draft_form_id,\n          metadata_name,\n          metadata_description,\n          eff_status,\n          created_at,\n          created_by_id,\n          modified_by_id,\n          modified_at\n        ) values (\n          $1,\n          $2,\n          $3,\n          $4,\n          1,\n          now(),\n          $5,\n          null,\n          null\n        ) returning * \n      )\n      select a.*,\n      b.name input_type_name\n      from inserted a\n      join input_types b\n      on a.input_type_id = b.id\n    ", [
+                return [4 /*yield*/, database_js_1.pool.query("\n      with inserted as (\n        insert into user_created_inputs (\n          input_type_id,\n          draft_form_id,\n          metadata_name,\n          metadata_description,\n          is_active,\n          eff_status,\n          created_at,\n          created_by_id,\n          modified_by_id,\n          modified_at\n        ) values (\n          $1,\n          $2,\n          $3,\n          $4,\n          1,\n          1,\n          now(),\n          $5,\n          null,\n          null\n        ) returning * \n      )\n      select a.*,\n      b.name input_type_name\n      from inserted a\n      join input_types b\n      on a.input_type_id = b.id\n    ", [
                         req.body.input.input_type_id,
                         req.body.form.id,
                         req.body.input.metadata_name,
@@ -225,13 +224,13 @@ router.post("/add-new-input-to-draft", function (req, res) { return __awaiter(vo
                         req.body.userId,
                     ])];
             case 1:
-                result1 = _a.sent();
-                if (!result1)
+                result1_1 = _a.sent();
+                if (!result1_1)
                     throw new Error("There was an error adding a user created input");
-                createdInput_1 = result1.rows[0];
+                createdInput_1 = result1_1.rows[0];
                 numCustomProperties_1 = 0;
                 if (req.body.input.properties) {
-                    req.body.input.properties.forEach(function (property) { return __awaiter(void 0, void 0, void 0, function () {
+                    req.body.input.properties.forEach(function (property, i) { return __awaiter(void 0, void 0, void 0, function () {
                         var result;
                         return __generator(this, function (_a) {
                             switch (_a.label) {
@@ -246,15 +245,21 @@ router.post("/add-new-input-to-draft", function (req, res) { return __awaiter(vo
                                     result = _a.sent();
                                     if (!result)
                                         throw new Error("There was an error adding this property value");
+                                    console.log("property value: ", property.value);
                                     if (property.value != null && property.value != "")
                                         numCustomProperties_1 += 1;
+                                    if (i == req.body.input.properties.length - 1) {
+                                        res.send(__assign(__assign({}, result1_1.rows[0]), { num_custom_properties: numCustomProperties_1 }));
+                                        return [2 /*return*/];
+                                    }
                                     return [2 /*return*/];
                             }
                         });
                     }); });
                 }
-                console.log("Added user created input");
-                res.send(__assign(__assign({}, result1.rows[0]), { num_custom_properties: numCustomProperties_1 }));
+                else {
+                    res.send(__assign(__assign({}, result1_1.rows[0]), { num_custom_properties: 0 }));
+                }
                 return [3 /*break*/, 3];
             case 2:
                 error_7 = _a.sent();
@@ -270,7 +275,7 @@ router.put("/change-draft-input-enabled-status/:inputId", function (req, res) { 
         switch (_a.label) {
             case 0:
                 _a.trys.push([0, 2, , 3]);
-                return [4 /*yield*/, database_js_1.pool.query("\n      update user_created_inputs\n      set eff_status = $1\n      where id = $2\n      returning *\n    ", [req.body.newEffStatus, req.params.inputId])];
+                return [4 /*yield*/, database_js_1.pool.query("\n      update user_created_inputs\n      set is_active = $1\n      where id = $2\n      returning *\n    ", [req.body.newActiveStatus, req.params.inputId])];
             case 1:
                 result = _a.sent();
                 if (!result)

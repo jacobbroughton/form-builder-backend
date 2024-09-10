@@ -258,7 +258,6 @@ router.put(
 
 router.post("/add-new-input-to-draft", async (req, res) => {
   try {
-    console.log(req.body);
     const result1 = await pool.query(
       `
       with inserted as (
@@ -267,6 +266,7 @@ router.post("/add-new-input-to-draft", async (req, res) => {
           draft_form_id,
           metadata_name,
           metadata_description,
+          is_active,
           eff_status,
           created_at,
           created_by_id,
@@ -277,6 +277,7 @@ router.post("/add-new-input-to-draft", async (req, res) => {
           $2,
           $3,
           $4,
+          1,
           1,
           now(),
           $5,
@@ -306,7 +307,7 @@ router.post("/add-new-input-to-draft", async (req, res) => {
     let numCustomProperties = 0;
 
     if (req.body.input.properties) {
-      req.body.input.properties.forEach(async (property) => {
+      req.body.input.properties.forEach(async (property, i) => {
         const result = await pool.query(
           `
           insert into user_created_input_property_values (
@@ -340,12 +341,18 @@ router.post("/add-new-input-to-draft", async (req, res) => {
 
         if (!result) throw new Error("There was an error adding this property value");
 
-        if (property.value != null && property.value != "") numCustomProperties += 1;
-      });
-    }
+        console.log("property value: ", property.value);
 
-    console.log("Added user created input");
-    res.send({ ...result1.rows[0], num_custom_properties: numCustomProperties });
+        if (property.value != null && property.value != "") numCustomProperties += 1;
+
+        if (i == req.body.input.properties.length - 1) {
+          res.send({ ...result1.rows[0], num_custom_properties: numCustomProperties });
+          return;
+        }
+      });
+    } else {
+      res.send({ ...result1.rows[0], num_custom_properties: 0 });
+    }
   } catch (error) {
     console.log(error);
   }
@@ -356,11 +363,11 @@ router.put("/change-draft-input-enabled-status/:inputId", async (req, res) => {
     const result = await pool.query(
       `
       update user_created_inputs
-      set eff_status = $1
+      set is_active = $1
       where id = $2
       returning *
     `,
-      [req.body.newEffStatus, req.params.inputId]
+      [req.body.newActiveStatus, req.params.inputId]
     );
 
     if (!result) throw new Error("There was an error deleting this form item from draft");
