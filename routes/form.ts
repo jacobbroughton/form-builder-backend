@@ -143,7 +143,7 @@ router.get(
 
       draft.inputs = result2.rows;
 
-      console.log(draft)
+      console.log(draft);
 
       res.send(draft);
     } catch (error) {
@@ -265,27 +265,34 @@ router.post("/add-new-form-item-to-draft", async (req, res) => {
     console.log(req.body);
     const result1 = await pool.query(
       `
-      insert into user_created_inputs (
-        input_type_id,
-        draft_form_id,
-        metadata_name,
-        metadata_description,
-        eff_status,
-        created_at,
-        created_by_id,
-        modified_by_id,
-        modified_at
-      ) values (
-        $1,
-        $2,
-        $3,
-        $4,
-        1,
-        now(),
-        $5,
-        null,
-        null
-      ) returning * 
+      with inserted as (
+        insert into user_created_inputs (
+          input_type_id,
+          draft_form_id,
+          metadata_name,
+          metadata_description,
+          eff_status,
+          created_at,
+          created_by_id,
+          modified_by_id,
+          modified_at
+        ) values (
+          $1,
+          $2,
+          $3,
+          $4,
+          1,
+          now(),
+          $5,
+          null,
+          null
+        ) returning * 
+      )
+      select a.*,
+      b.name input_type_name
+      from inserted a
+      join input_types b
+      on a.input_type_id = b.id
     `,
       [
         req.body.input.input_type_id,
@@ -300,8 +307,12 @@ router.post("/add-new-form-item-to-draft", async (req, res) => {
 
     const createdInput = result1.rows[0];
 
+    let numCustomProperties = 0;
+
     if (req.body.input.properties) {
       req.body.input.properties.forEach(async (property) => {
+        if (property.value != null && property.value != "") numCustomProperties += 1;
+
         const result = await pool.query(
           `
           insert into user_created_input_property_values (
@@ -340,7 +351,7 @@ router.post("/add-new-form-item-to-draft", async (req, res) => {
     }
 
     console.log("Added user created input");
-    res.send(result1.rows[0]);
+    res.send({ ...result1.rows[0], num_custom_properties: numCustomProperties });
   } catch (error) {
     console.log(error);
   }
