@@ -144,19 +144,17 @@ router.get("/check-for-existing-draft", function (req, res) { return __awaiter(v
                 result1 = _a.sent();
                 if (!result1)
                     throw new Error("There was an error fetching existing form draft");
-                console.log("Existing draft", result1.rows);
                 draft.form = result1.rows[0];
                 if (!draft.form) {
                     res.send(draft);
                     return [2 /*return*/];
                 }
-                return [4 /*yield*/, database_js_1.pool.query("\n        select a.*, \n        b.name input_type_name, \n        b.description input_type_description,\n        (\n          select cast(count(*) as integer) from user_created_input_property_values\n          where created_input_id = a.id\n          and value is not null and value != ''\n        ) num_custom_properties\n        from user_created_inputs a\n        inner join input_types b\n        on a.input_type_id = b.id\n        -- left join user_created_input_property_values c\n        -- on a.id = c.created_input_id\n        where a.draft_form_id = $1\n        and a.eff_status = 1\n      ", [draft.form.id])];
+                return [4 /*yield*/, database_js_1.pool.query("\n        select a.*, \n        b.name input_type_name, \n        b.description input_type_description,\n        (\n          select cast(count(*) as integer) from user_created_input_property_values\n          where created_input_id = a.id\n          and value is not null and value != ''\n        ) num_custom_properties\n        from user_created_inputs a\n        inner join input_types b\n        on a.input_type_id = b.id\n        -- left join user_created_input_property_values c\n        -- on a.id = c.created_input_id\n        where a.draft_form_id = $1\n        --and a.eff_status = 1\n        order by a.id asc\n      ", [draft.form.id])];
             case 2:
                 result2 = _a.sent();
                 if (!result2)
                     throw new Error("There was an error fetching inputs for the existing form draft");
                 draft.inputs = result2.rows;
-                console.log(draft);
                 res.send(draft);
                 return [3 /*break*/, 4];
             case 3:
@@ -173,7 +171,6 @@ router.post("/store-initial-draft", function (req, res) { return __awaiter(void 
         switch (_a.label) {
             case 0:
                 _a.trys.push([0, 2, , 3]);
-                console.log(req.body);
                 return [4 /*yield*/, database_js_1.pool.query("\n        insert into draft_forms (\n          name,\n          description,\n          passkey,\n          eff_status,\n          created_by_id,\n          created_at,\n          modified_by_id,\n          modified_at\n        ) values (\n          'Untitled',\n          '',\n          null,\n          1,\n          $1,\n          now(),\n          null,\n          null\n        )\n        returning *\n      ", [req.body.userId])];
             case 1:
                 result = _a.sent();
@@ -213,7 +210,7 @@ router.put("/update-draft", function (req, res) { return __awaiter(void 0, void 
         }
     });
 }); });
-router.post("/add-new-form-item-to-draft", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+router.post("/add-new-input-to-draft", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
     var result1, createdInput_1, numCustomProperties_1, error_7;
     return __generator(this, function (_a) {
         switch (_a.label) {
@@ -238,21 +235,19 @@ router.post("/add-new-form-item-to-draft", function (req, res) { return __awaite
                         var result;
                         return __generator(this, function (_a) {
                             switch (_a.label) {
-                                case 0:
-                                    if (property.value != null && property.value != "")
-                                        numCustomProperties_1 += 1;
-                                    return [4 /*yield*/, database_js_1.pool.query("\n          insert into user_created_input_property_values (\n            created_input_id, \n            property_id, \n            input_type_id, \n            value,\n            created_at,\n            created_by_id, \n            modified_by_id, \n            modified_at\n          ) values (\n            $1,\n            $2,\n            $3,\n            $4,\n            now(),\n            $5,\n            null,\n            null\n          ) \n        ", [
-                                            createdInput_1.id,
-                                            property.id,
-                                            createdInput_1.input_type_id,
-                                            property.value,
-                                            req.body.userId,
-                                        ])];
+                                case 0: return [4 /*yield*/, database_js_1.pool.query("\n          insert into user_created_input_property_values (\n            created_input_id, \n            property_id, \n            input_type_id, \n            value,\n            created_at,\n            created_by_id, \n            modified_by_id, \n            modified_at\n          ) values (\n            $1,\n            $2,\n            $3,\n            $4,\n            now(),\n            $5,\n            null,\n            null\n          ) \n        ", [
+                                        createdInput_1.id,
+                                        property.id,
+                                        createdInput_1.input_type_id,
+                                        property.value,
+                                        req.body.userId,
+                                    ])];
                                 case 1:
                                     result = _a.sent();
                                     if (!result)
                                         throw new Error("There was an error adding this property value");
-                                    console.log("Added property value");
+                                    if (property.value != null && property.value != "")
+                                        numCustomProperties_1 += 1;
                                     return [2 /*return*/];
                             }
                         });
@@ -264,6 +259,27 @@ router.post("/add-new-form-item-to-draft", function (req, res) { return __awaite
             case 2:
                 error_7 = _a.sent();
                 console.log(error_7);
+                return [3 /*break*/, 3];
+            case 3: return [2 /*return*/];
+        }
+    });
+}); });
+router.put("/change-draft-input-enabled-status/:inputId", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+    var result, error_8;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0:
+                _a.trys.push([0, 2, , 3]);
+                return [4 /*yield*/, database_js_1.pool.query("\n      update user_created_inputs\n      set eff_status = $1\n      where id = $2\n      returning *\n    ", [req.body.newEffStatus, req.params.inputId])];
+            case 1:
+                result = _a.sent();
+                if (!result)
+                    throw new Error("There was an error deleting this form item from draft");
+                res.send(result.rows[0]);
+                return [3 /*break*/, 3];
+            case 2:
+                error_8 = _a.sent();
+                console.log(error_8);
                 return [3 /*break*/, 3];
             case 3: return [2 /*return*/];
         }

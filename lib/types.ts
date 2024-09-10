@@ -1,10 +1,10 @@
-export type FormItemTypeType = {
+export type InputTypeType = {
   id: number,
   name: string,
   description: string
 }
 
-export type FormItemTypePropertyType = {
+export type InputTypePropertyType = {
   id: number,
   input_type_id: number,
 	property_name: string,
@@ -13,7 +13,7 @@ export type FormItemTypePropertyType = {
   value: string
 }
 
-export type FormItemTypePropertyOptionType = {
+export type InputTypePropertyOptionType = {
   id: number,
   property_id: number,
   option_name: number,

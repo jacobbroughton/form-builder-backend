@@ -2,8 +2,8 @@ import * as express from "express";
 import { pool } from "../config/database.js";
 import {
   HashmapType,
-  FormItemTypePropertyOptionType,
-  FormItemTypePropertyType,
+  InputTypePropertyOptionType,
+  InputTypePropertyType,
 } from "../lib/types.js";
 import { Request, Response } from "express";
 
@@ -30,7 +30,7 @@ router.get("/item-type-properties", async (req, res): Promise<void> => {
 
     if (!result) throw new Error("There was an error fetching form item type properties");
 
-    result.rows = result.rows.map((row: FormItemTypePropertyType) => ({
+    result.rows = result.rows.map((row: InputTypePropertyType) => ({
       ...row,
       ...(row.property_type !== "radio" && {
         value: "",
@@ -56,7 +56,7 @@ router.get("/item-type-property-options", async (req, res): Promise<void> => {
 
     if (!result) throw new Error("There was an error fetching form item type properties");
 
-    result.rows = result.rows.map((row: FormItemTypePropertyOptionType) => ({
+    result.rows = result.rows.map((row: InputTypePropertyOptionType) => ({
       ...row,
       checked: false,
     }));
@@ -108,8 +108,6 @@ router.get(
 
       if (!result1) throw new Error("There was an error fetching existing form draft");
 
-      console.log("Existing draft", result1.rows);
-
       draft.form = result1.rows[0];
 
       if (!draft.form) {
@@ -133,7 +131,8 @@ router.get(
         -- left join user_created_input_property_values c
         -- on a.id = c.created_input_id
         where a.draft_form_id = $1
-        and a.eff_status = 1
+        --and a.eff_status = 1
+        order by a.id asc
       `,
         [draft.form.id]
       );
@@ -142,8 +141,6 @@ router.get(
         throw new Error("There was an error fetching inputs for the existing form draft");
 
       draft.inputs = result2.rows;
-
-      console.log(draft);
 
       res.send(draft);
     } catch (error) {
@@ -164,7 +161,6 @@ router.post(
   "/store-initial-draft",
   async (req: StoreInitialDraftRequest, res: Response): Promise<void> => {
     try {
-      console.log(req.body);
       const result = await pool.query(
         `
         insert into draft_forms (
@@ -206,7 +202,7 @@ interface UpdateDraftBody {
   title: string;
   description: string;
   userId: number;
-  formItems: {
+  inputs: {
     inputType: {
       id: number;
       name: string;
@@ -260,7 +256,7 @@ router.put(
   }
 );
 
-router.post("/add-new-form-item-to-draft", async (req, res) => {
+router.post("/add-new-input-to-draft", async (req, res) => {
   try {
     console.log(req.body);
     const result1 = await pool.query(
@@ -311,8 +307,6 @@ router.post("/add-new-form-item-to-draft", async (req, res) => {
 
     if (req.body.input.properties) {
       req.body.input.properties.forEach(async (property) => {
-        if (property.value != null && property.value != "") numCustomProperties += 1;
-
         const result = await pool.query(
           `
           insert into user_created_input_property_values (
@@ -346,12 +340,32 @@ router.post("/add-new-form-item-to-draft", async (req, res) => {
 
         if (!result) throw new Error("There was an error adding this property value");
 
-        console.log("Added property value");
+        if (property.value != null && property.value != "") numCustomProperties += 1;
       });
     }
 
     console.log("Added user created input");
     res.send({ ...result1.rows[0], num_custom_properties: numCustomProperties });
+  } catch (error) {
+    console.log(error);
+  }
+});
+
+router.put("/change-draft-input-enabled-status/:inputId", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+      update user_created_inputs
+      set eff_status = $1
+      where id = $2
+      returning *
+    `,
+      [req.body.newEffStatus, req.params.inputId]
+    );
+
+    if (!result) throw new Error("There was an error deleting this form item from draft");
+
+    res.send(result.rows[0]);
   } catch (error) {
     console.log(error);
   }
