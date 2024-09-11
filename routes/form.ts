@@ -21,12 +21,35 @@ router.get("/get-form-as-user/:formId", async (req, res) => {
 
     if (!result) throw new Error("There was an error getting this form");
 
-    console.log(result.rows);
+    if (!result.rows[0]) throw new Error("No form was found");
 
-    const result2 = await pool.query(`
-      select * from draft_user_created_inputs
-      where
-    `);
+    const form = result.rows[0];
+
+    const result2 = await pool.query(
+      `
+      select a.*, 
+      b.name input_type_name,
+      b.description input_type_description
+      from user_created_inputs a
+      inner join input_types b
+      on a.input_type_id = b.id
+      where form_id = $1
+      and eff_status = 1
+    `,
+      [form.id]
+    );
+
+    if (!result2)
+      throw new Error("Something happened while trying to get input types for this form");
+
+    const inputs = result2.rows
+
+    res.send({
+      form,
+      inputs
+    })
+
+    console.log(result2.rows);
   } catch (error) {
     console.log(error);
   }

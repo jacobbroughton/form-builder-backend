@@ -60,7 +60,7 @@ var express = require("express");
 var database_js_1 = require("../config/database.js");
 var router = express.Router();
 router.get("/get-form-as-user/:formId", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
-    var result, result2, error_1;
+    var result, form, result2, inputs, error_1;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
@@ -70,10 +70,20 @@ router.get("/get-form-as-user/:formId", function (req, res) { return __awaiter(v
                 result = _a.sent();
                 if (!result)
                     throw new Error("There was an error getting this form");
-                console.log(result.rows);
-                return [4 /*yield*/, database_js_1.pool.query("\n      select * from draft_user_created_inputs\n      where\n    ")];
+                if (!result.rows[0])
+                    throw new Error("No form was found");
+                form = result.rows[0];
+                return [4 /*yield*/, database_js_1.pool.query("\n      select a.*, \n      b.name input_type_name,\n      b.description input_type_description\n      from user_created_inputs a\n      inner join input_types b\n      on a.input_type_id = b.id\n      where form_id = $1\n      and eff_status = 1\n    ", [form.id])];
             case 2:
                 result2 = _a.sent();
+                if (!result2)
+                    throw new Error("Something happened while trying to get input types for this form");
+                inputs = result2.rows;
+                res.send({
+                    form: form,
+                    inputs: inputs
+                });
+                console.log(result2.rows);
                 return [3 /*break*/, 4];
             case 3:
                 error_1 = _a.sent();
