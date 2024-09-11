@@ -9,6 +9,29 @@ import { Request, Response } from "express";
 
 const router = express.Router();
 
+router.get("/get-form-as-user/:formId", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+      select * from forms
+      where id = $1
+    `,
+      [req.params.formId]
+    );
+
+    if (!result) throw new Error("There was an error getting this form");
+
+    console.log(result.rows);
+
+    const result2 = await pool.query(`
+      select * from draft_user_created_inputs
+      where
+    `);
+  } catch (error) {
+    console.log(error);
+  }
+});
+
 router.get("/item-types", async (req, res): Promise<void> => {
   try {
     const result = await pool.query(`
@@ -102,6 +125,7 @@ router.get(
           select * from draft_forms
           where created_by_id = $1
           and eff_status = 1
+          and is_published = false
         `,
         [userId]
       );
@@ -121,14 +145,14 @@ router.get(
         b.name input_type_name, 
         b.description input_type_description,
         (
-          select cast(count(*) as integer) from user_created_input_property_values
-          where created_input_id = a.id
+          select cast(count(*) as integer) from draft_user_created_input_property_values
+          where created_input_id = a.id\
           and value is not null and value != ''
         ) num_custom_properties
-        from user_created_inputs a
+        from draft_user_created_inputs a
         inner join input_types b
         on a.input_type_id = b.id
-        -- left join user_created_input_property_values c
+        -- left join draft_user_created_input_property_values c
         -- on a.id = c.created_input_id
         where a.draft_form_id = $1
         --and a.eff_status = 1
@@ -167,6 +191,7 @@ router.post(
           name,
           description,
           passkey,
+          is_published,
           eff_status,
           created_by_id,
           created_at,
@@ -176,6 +201,7 @@ router.post(
           'Untitled',
           '',
           null,
+          false,
           1,
           $1,
           now(),
@@ -199,6 +225,7 @@ router.post(
 );
 
 interface UpdateDraftBody {
+  draftFormId: string;
   title: string;
   description: string;
   userId: number;
@@ -240,9 +267,16 @@ router.put(
           passkey = $3,
           modified_by_id = $4,
           modified_at = now()
+        where id = $5
         returning *
       `,
-        [req.body.title, req.body.description, null, req.body.userId]
+        [
+          req.body.title,
+          req.body.description,
+          null,
+          req.body.userId,
+          req.body.draftFormId,
+        ]
       );
 
       if (!result) throw new Error("There was an error updating the form draft");
@@ -261,7 +295,7 @@ router.post("/add-new-input-to-draft", async (req, res) => {
     const result1 = await pool.query(
       `
       with inserted as (
-        insert into user_created_inputs (
+        insert into draft_user_created_inputs (
           input_type_id,
           draft_form_id,
           metadata_name,
@@ -277,7 +311,7 @@ router.post("/add-new-input-to-draft", async (req, res) => {
           $2,
           $3,
           $4,
-          1,
+          true,
           1,
           now(),
           $5,
@@ -310,7 +344,7 @@ router.post("/add-new-input-to-draft", async (req, res) => {
       req.body.input.properties.forEach(async (property, i) => {
         const result = await pool.query(
           `
-          insert into user_created_input_property_values (
+          insert into draft_user_created_input_property_values (
             created_input_id, 
             property_id, 
             input_type_id, 
@@ -362,7 +396,7 @@ router.put("/change-draft-input-enabled-status/:inputId", async (req, res) => {
   try {
     const result = await pool.query(
       `
-      update user_created_inputs
+      update draft_user_created_inputs
       set is_active = $1
       where id = $2
       returning *
@@ -373,6 +407,167 @@ router.put("/change-draft-input-enabled-status/:inputId", async (req, res) => {
     if (!result) throw new Error("There was an error deleting this form item from draft");
 
     res.send(result.rows[0]);
+  } catch (error) {
+    console.log(error);
+  }
+});
+
+router.post("/publish", async (req, res) => {
+  try {
+    console.log("Publishing");
+
+    const result = await pool.query(
+      `
+      select * from forms
+      where draft_id = $1
+    `,
+      [req.body.draftFormId]
+    );
+
+    if (!result.rows[0] /* if not already in forms table */) {
+      const result = await pool.query(
+        `
+        insert into forms (
+          draft_id,
+          name,
+          description,
+          passkey,
+          eff_status,
+          published_by_id,
+          published_at,
+          created_by_id,
+          created_at,
+          modified_by_id,
+          modified_at
+        )
+        select
+          a.id,
+          a.name,
+          a.description,
+          a.passkey,
+          1,
+          $2,
+          now(),
+          a.created_by_id,
+          a.created_at,
+          null,
+          null
+        from draft_forms a
+        where a.id = $1
+        returning *
+      `,
+        [req.body.draftFormId, req.body.userId]
+      );
+
+      if (!result) throw new Error("Something went wrong when publishing the form");
+
+      const newForm = result.rows[0];
+
+      const result2 = await pool.query(
+        `
+        update draft_forms
+        set is_published = true
+        where id = $1
+      `,
+        [req.body.draftFormId]
+      );
+
+      if (!result2)
+        throw new Error("There was an error updating the draft's is_published property.");
+
+      const result3 = await pool.query(
+        `
+        insert into user_created_inputs (
+          input_type_id,
+          form_id,
+          metadata_name ,
+          metadata_description,
+          is_active,
+          eff_status,
+          published_at,
+          published_by_id,
+          created_at,
+          created_by_id,
+          modified_by_id,
+          modified_at
+        )
+        select
+          a.input_type_id,
+          $1,
+          a.metadata_name,
+          a.metadata_description,
+          a.is_active,
+          a.eff_status,
+          now(),
+          $2,
+          a.created_at,
+          a.created_by_id,
+          a.modified_by_id,
+          a.modified_at
+        from draft_user_created_inputs a
+        where a.draft_form_id = $3
+        returning *
+      `,
+        [newForm.id, req.body.userId, newForm.draft_id]
+      );
+
+      if (!result3)
+        throw new Error("There was a problem moving over draft user created inputs");
+
+      console.log(`Moved over ${result.rowCount} user created inputs`);
+
+      let insertedPropertyValues = 0;
+
+      result3.rows.forEach(async (input, i) => {
+        console.log(input);
+        const result4 = await pool.query(
+          `
+          insert into user_created_input_property_values (
+            created_input_id,
+            property_id,
+            input_type_id,
+            value,
+            published_at,
+            published_by_id,
+            created_at,
+            created_by_id,
+            modified_by_id,
+            modified_at
+          )
+          select
+            $1,
+            a.property_id,
+            a.input_type_id,
+            a.value,
+            now(),
+            $2,
+            a.created_at,
+            a.created_by_id,
+            null,
+            null
+          from draft_user_created_input_property_values a
+          inner join draft_user_created_inputs b
+          on a.created_input_id = b.id
+          where a.created_input_id = $1
+        `,
+          [input.id, req.body.userId]
+        );
+
+        insertedPropertyValues += 1;
+
+        if (insertedPropertyValues === result3.rows.length - 1) {
+          res.send(result.rows);
+          return;
+        }
+      });
+
+      if (insertedPropertyValues === 0 && !result2.rows.length) {
+        res.send(result.rows);
+        return;
+      }
+    }
+
+    res.send(result.rows);
   } catch (error) {
     console.log(error);
   }
