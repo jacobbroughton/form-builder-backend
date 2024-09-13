@@ -59,12 +59,63 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var express = require("express");
 var database_js_1 = require("../config/database.js");
 var router = express.Router();
-router.get("/get-form-as-user/:formId", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
-    var result, form, result2, inputs, error_1;
+router.get("/get-forms/:userId", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+    var result, result2, forms, error_1;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
                 _a.trys.push([0, 3, , 4]);
+                return [4 /*yield*/, database_js_1.pool.query("\n      select * from forms\n      where created_by_id = $1\n    ", [req.params.userId])];
+            case 1:
+                result = _a.sent();
+                if (!result)
+                    throw new Error("There was an error fetching published forms");
+                return [4 /*yield*/, database_js_1.pool.query("\n        select * from draft_forms\n        where created_by_id = $1\n        and is_published = false\n      ", [req.params.userId])];
+            case 2:
+                result2 = _a.sent();
+                if (!result2)
+                    throw new Error("There was an error fetching draft forms");
+                forms = {
+                    drafts: result2.rows,
+                    published: result.rows,
+                };
+                res.send(forms);
+                return [3 /*break*/, 4];
+            case 3:
+                error_1 = _a.sent();
+                console.log(error_1);
+                return [3 /*break*/, 4];
+            case 4: return [2 /*return*/];
+        }
+    });
+}); });
+router.get("/get-draft-forms/:userId", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+    var result, error_2;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0:
+                _a.trys.push([0, 2, , 3]);
+                return [4 /*yield*/, database_js_1.pool.query("\n        select * from draft_forms\n        where created_by_id = $1\n        and is_published = false\n      ", [req.params.userId])];
+            case 1:
+                result = _a.sent();
+                if (!result)
+                    throw new Error("There was an error fetching draft forms");
+                res.send(result.rows);
+                return [3 /*break*/, 3];
+            case 2:
+                error_2 = _a.sent();
+                console.log(error_2);
+                return [3 /*break*/, 3];
+            case 3: return [2 /*return*/];
+        }
+    });
+}); });
+router.get("/get-published-form-as-user/:formId", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+    var result, form, result2, inputs, result3, properties, error_3;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0:
+                _a.trys.push([0, 4, , 5]);
                 return [4 /*yield*/, database_js_1.pool.query("\n      select * from forms\n      where id = $1\n    ", [req.params.formId])];
             case 1:
                 result = _a.sent();
@@ -79,22 +130,59 @@ router.get("/get-form-as-user/:formId", function (req, res) { return __awaiter(v
                 if (!result2)
                     throw new Error("Something happened while trying to get input types for this form");
                 inputs = result2.rows;
+                return [4 /*yield*/, database_js_1.pool.query("\n      select a.*, \n      b.* from user_created_input_property_values a\n      inner join input_properties b\n      on a.property_id = b.id\n      inner join user_created_inputs c \n      on a.created_input_id = c.id\n      where c.form_id = $1\n    ", [form.id])];
+            case 3:
+                result3 = _a.sent();
+                properties = result3.rows;
                 res.send({
                     form: form,
-                    inputs: inputs
+                    inputs: inputs,
+                    properties: properties,
                 });
-                console.log(result2.rows);
+                return [3 /*break*/, 5];
+            case 4:
+                error_3 = _a.sent();
+                console.log(error_3);
+                return [3 /*break*/, 5];
+            case 5: return [2 /*return*/];
+        }
+    });
+}); });
+router.get("/get-draft-form/:formId", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+    var result, form, result2, inputs, error_4;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0:
+                _a.trys.push([0, 3, , 4]);
+                return [4 /*yield*/, database_js_1.pool.query("\n      select * from draft_forms\n      where id = $1\n    ", [req.params.formId])];
+            case 1:
+                result = _a.sent();
+                if (!result)
+                    throw new Error("There was an error getting this form");
+                if (!result.rows[0])
+                    throw new Error("No form was found");
+                form = result.rows[0];
+                return [4 /*yield*/, database_js_1.pool.query("\n      select a.*, \n      b.name input_type_name,\n      b.description input_type_description\n      from draft_user_created_inputs a\n      inner join input_types b\n      on a.input_type_id = b.id\n      where draft_form_id = $1\n      and eff_status = 1\n    ", [form.id])];
+            case 2:
+                result2 = _a.sent();
+                if (!result2)
+                    throw new Error("Something happened while trying to get input types for this form");
+                inputs = result2.rows;
+                res.send({
+                    form: form,
+                    inputs: inputs,
+                });
                 return [3 /*break*/, 4];
             case 3:
-                error_1 = _a.sent();
-                console.log(error_1);
+                error_4 = _a.sent();
+                console.log(error_4);
                 return [3 /*break*/, 4];
             case 4: return [2 /*return*/];
         }
     });
 }); });
 router.get("/item-types", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
-    var result, error_2;
+    var result, error_5;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
@@ -107,15 +195,15 @@ router.get("/item-types", function (req, res) { return __awaiter(void 0, void 0,
                 res.send(result.rows);
                 return [3 /*break*/, 3];
             case 2:
-                error_2 = _a.sent();
-                console.log(error_2);
+                error_5 = _a.sent();
+                console.log(error_5);
                 return [3 /*break*/, 3];
             case 3: return [2 /*return*/];
         }
     });
 }); });
 router.get("/item-type-properties", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
-    var result, data, error_3;
+    var result, data, error_6;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
@@ -132,15 +220,15 @@ router.get("/item-type-properties", function (req, res) { return __awaiter(void 
                 res.send(data);
                 return [3 /*break*/, 3];
             case 2:
-                error_3 = _a.sent();
-                console.log(error_3);
+                error_6 = _a.sent();
+                console.log(error_6);
                 return [3 /*break*/, 3];
             case 3: return [2 /*return*/];
         }
     });
 }); });
 router.get("/item-type-property-options", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
-    var result, data, error_4;
+    var result, data, error_7;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
@@ -155,15 +243,15 @@ router.get("/item-type-property-options", function (req, res) { return __awaiter
                 res.send(data);
                 return [3 /*break*/, 3];
             case 2:
-                error_4 = _a.sent();
-                console.log(error_4);
+                error_7 = _a.sent();
+                console.log(error_7);
                 return [3 /*break*/, 3];
             case 3: return [2 /*return*/];
         }
     });
 }); });
 router.get("/check-for-existing-draft", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
-    var userId, draft, result1, result2, error_5;
+    var userId, draft, result1, result2, error_8;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
@@ -192,20 +280,20 @@ router.get("/check-for-existing-draft", function (req, res) { return __awaiter(v
                 res.send(draft);
                 return [3 /*break*/, 4];
             case 3:
-                error_5 = _a.sent();
-                console.log(error_5);
+                error_8 = _a.sent();
+                console.log(error_8);
                 return [3 /*break*/, 4];
             case 4: return [2 /*return*/];
         }
     });
 }); });
 router.post("/store-initial-draft", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
-    var result, error_6;
+    var result, error_9;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
                 _a.trys.push([0, 2, , 3]);
-                return [4 /*yield*/, database_js_1.pool.query("\n        insert into draft_forms (\n          name,\n          description,\n          passkey,\n          is_published,\n          eff_status,\n          created_by_id,\n          created_at,\n          modified_by_id,\n          modified_at\n        ) values (\n          'Untitled',\n          '',\n          null,\n          false,\n          1,\n          $1,\n          now(),\n          null,\n          null\n        )\n        returning *\n      ", [req.body.userId])];
+                return [4 /*yield*/, database_js_1.pool.query("\n        insert into draft_forms (\n          title,\n          description,\n          passkey,\n          is_published,\n          eff_status,\n          created_by_id,\n          created_at,\n          modified_by_id,\n          modified_at\n        ) values (\n          'Untitled',\n          '',\n          null,\n          false,\n          1,\n          $1,\n          now(),\n          null,\n          null\n        )\n        returning *\n      ", [req.body.userId])];
             case 1:
                 result = _a.sent();
                 if (!result)
@@ -214,20 +302,20 @@ router.post("/store-initial-draft", function (req, res) { return __awaiter(void 
                 res.send(result.rows[0]);
                 return [3 /*break*/, 3];
             case 2:
-                error_6 = _a.sent();
-                console.log(error_6);
+                error_9 = _a.sent();
+                console.log(error_9);
                 return [3 /*break*/, 3];
             case 3: return [2 /*return*/];
         }
     });
 }); });
 router.put("/update-draft", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
-    var result, error_7;
+    var result2, error_10;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
                 _a.trys.push([0, 2, , 3]);
-                return [4 /*yield*/, database_js_1.pool.query("\n        update draft_forms \n        set \n          name = $1,\n          description = $2,\n          passkey = $3,\n          modified_by_id = $4,\n          modified_at = now()\n        where id = $5\n        returning *\n      ", [
+                return [4 /*yield*/, database_js_1.pool.query("\n        update draft_forms \n        set \n          title = $1,\n          description = $2,\n          passkey = $3,\n          modified_by_id = $4,\n          modified_at = now()\n        where id = $5\n        returning *\n      ", [
                         req.body.title,
                         req.body.description,
                         null,
@@ -235,23 +323,23 @@ router.put("/update-draft", function (req, res) { return __awaiter(void 0, void 
                         req.body.draftFormId,
                     ])];
             case 1:
-                result = _a.sent();
-                if (!result)
+                result2 = _a.sent();
+                if (!result2)
                     throw new Error("There was an error updating the form draft");
-                if (!result.rows[0])
+                if (!result2.rows[0])
                     throw new Error("New form draft was not updated");
-                res.send(result.rows[0]);
+                res.send(result2.rows[0]);
                 return [3 /*break*/, 3];
             case 2:
-                error_7 = _a.sent();
-                console.log(error_7);
+                error_10 = _a.sent();
+                console.log(error_10);
                 return [3 /*break*/, 3];
             case 3: return [2 /*return*/];
         }
     });
 }); });
 router.post("/add-new-input-to-draft", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
-    var result1_1, createdInput_1, numCustomProperties_1, error_8;
+    var result1_1, createdInput_1, numCustomProperties_1, error_11;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
@@ -302,15 +390,15 @@ router.post("/add-new-input-to-draft", function (req, res) { return __awaiter(vo
                 }
                 return [3 /*break*/, 3];
             case 2:
-                error_8 = _a.sent();
-                console.log(error_8);
+                error_11 = _a.sent();
+                console.log(error_11);
                 return [3 /*break*/, 3];
             case 3: return [2 /*return*/];
         }
     });
 }); });
 router.put("/change-draft-input-enabled-status/:inputId", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
-    var result, error_9;
+    var result, error_12;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
@@ -323,25 +411,25 @@ router.put("/change-draft-input-enabled-status/:inputId", function (req, res) { 
                 res.send(result.rows[0]);
                 return [3 /*break*/, 3];
             case 2:
-                error_9 = _a.sent();
-                console.log(error_9);
+                error_12 = _a.sent();
+                console.log(error_12);
                 return [3 /*break*/, 3];
             case 3: return [2 /*return*/];
         }
     });
 }); });
 router.post("/publish", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
-    var result, result_1, newForm, result2, result3_1, insertedPropertyValues_1, error_10;
+    var result, result_1, newForm, result2, result3_1, insertedPropertyInputs_1, alreadySentToClient_1, error_13;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
-                _a.trys.push([0, 6, , 7]);
+                _a.trys.push([0, 7, , 8]);
                 console.log("Publishing");
                 return [4 /*yield*/, database_js_1.pool.query("\n      select * from forms\n      where draft_id = $1\n    ", [req.body.draftFormId])];
             case 1:
                 result = _a.sent();
                 if (!!result.rows[0] /* if not already in forms table */) return [3 /*break*/, 5]; /* if not already in forms table */
-                return [4 /*yield*/, database_js_1.pool.query("\n        insert into forms (\n          draft_id,\n          name,\n          description,\n          passkey,\n          eff_status,\n          published_by_id,\n          published_at,\n          created_by_id,\n          created_at,\n          modified_by_id,\n          modified_at\n        )\n        select\n          a.id,\n          a.name,\n          a.description,\n          a.passkey,\n          1,\n          $2,\n          now(),\n          a.created_by_id,\n          a.created_at,\n          null,\n          null\n        from draft_forms a\n        where a.id = $1\n        returning *\n      ", [req.body.draftFormId, req.body.userId])];
+                return [4 /*yield*/, database_js_1.pool.query("\n        insert into forms (\n          draft_id,\n          title,\n          description,\n          passkey,\n          eff_status,\n          published_by_id,\n          published_at,\n          created_by_id,\n          created_at,\n          modified_by_id,\n          modified_at\n        )\n        select\n          a.id,\n          a.title,\n          a.description,\n          a.passkey,\n          1,\n          $2,\n          now(),\n          a.created_by_id,\n          a.created_at,\n          null,\n          null\n        from draft_forms a\n        where a.id = $1\n        returning *\n      ", [req.body.draftFormId, req.body.userId])];
             case 2:
                 result_1 = _a.sent();
                 if (!result_1)
@@ -358,18 +446,19 @@ router.post("/publish", function (req, res) { return __awaiter(void 0, void 0, v
                 if (!result3_1)
                     throw new Error("There was a problem moving over draft user created inputs");
                 console.log("Moved over ".concat(result_1.rowCount, " user created inputs"));
-                insertedPropertyValues_1 = 0;
+                insertedPropertyInputs_1 = 0;
+                alreadySentToClient_1 = false;
                 result3_1.rows.forEach(function (input, i) { return __awaiter(void 0, void 0, void 0, function () {
                     var result4;
                     return __generator(this, function (_a) {
                         switch (_a.label) {
-                            case 0:
-                                console.log(input);
-                                return [4 /*yield*/, database_js_1.pool.query("\n          insert into user_created_input_property_values (\n            created_input_id,\n            property_id,\n            input_type_id,\n            value,\n            published_at,\n            published_by_id,\n            created_at,\n            created_by_id,\n            modified_by_id,\n            modified_at\n          )\n          select\n            $1,\n            a.property_id,\n            a.input_type_id,\n            a.value,\n            now(),\n            $2,\n            a.created_at,\n            a.created_by_id,\n            null,\n            null\n          from draft_user_created_input_property_values a\n          inner join draft_user_created_inputs b\n          on a.created_input_id = b.id\n          where a.created_input_id = $1\n        ", [input.id, req.body.userId])];
+                            case 0: return [4 /*yield*/, database_js_1.pool.query("\n          insert into user_created_input_property_values (\n            created_input_id,\n            property_id,\n            input_type_id,\n            value,\n            published_at,\n            published_by_id,\n            created_at,\n            created_by_id,\n            modified_by_id,\n            modified_at\n          )\n          select\n            $1,\n            a.property_id,\n            a.input_type_id,\n            a.value,\n            now(),\n            $2,\n            a.created_at,\n            a.created_by_id,\n            null,\n            null\n          from draft_user_created_input_property_values a\n          inner join draft_user_created_inputs b\n          on a.created_input_id = b.id\n          where a.created_input_id = $1\n        ", [input.id, req.body.userId])];
                             case 1:
                                 result4 = _a.sent();
-                                insertedPropertyValues_1 += 1;
-                                if (insertedPropertyValues_1 === result3_1.rows.length - 1) {
+                                insertedPropertyInputs_1 += 1;
+                                if (insertedPropertyInputs_1 === result3_1.rows.length) {
+                                    console.log("Sending to client");
+                                    alreadySentToClient_1 = true;
                                     res.send(result_1.rows);
                                     return [2 /*return*/];
                                 }
@@ -377,19 +466,25 @@ router.post("/publish", function (req, res) { return __awaiter(void 0, void 0, v
                         }
                     });
                 }); });
-                if (insertedPropertyValues_1 === 0 && !result2.rows.length) {
+                if (insertedPropertyInputs_1 === 0 && !result3_1.rows.length) {
+                    console.log("Also sending here", insertedPropertyInputs_1, result3_1.rows.length);
                     res.send(result_1.rows);
                     return [2 /*return*/];
                 }
-                _a.label = 5;
+                else {
+                    console.log("Swag???", insertedPropertyInputs_1, result3_1.rows.length);
+                }
+                return [3 /*break*/, 6];
             case 5:
+                console.log("indeed sending here as well");
                 res.send(result.rows);
-                return [3 /*break*/, 7];
-            case 6:
-                error_10 = _a.sent();
-                console.log(error_10);
-                return [3 /*break*/, 7];
-            case 7: return [2 /*return*/];
+                _a.label = 6;
+            case 6: return [3 /*break*/, 8];
+            case 7:
+                error_13 = _a.sent();
+                console.log(error_13);
+                return [3 /*break*/, 8];
+            case 8: return [2 /*return*/];
         }
     });
 }); });

@@ -9,7 +9,60 @@ import { Request, Response } from "express";
 
 const router = express.Router();
 
-router.get("/get-form-as-user/:formId", async (req, res) => {
+router.get("/get-forms/:userId", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+      select * from forms
+      where created_by_id = $1
+    `,
+      [req.params.userId]
+    );
+
+    if (!result) throw new Error("There was an error fetching published forms");
+
+    const result2 = await pool.query(
+      `
+        select * from draft_forms
+        where created_by_id = $1
+        and is_published = false
+      `,
+      [req.params.userId]
+    );
+
+    if (!result2) throw new Error("There was an error fetching draft forms");
+
+    let forms = {
+      drafts: result2.rows,
+      published: result.rows,
+    };
+
+    res.send(forms);
+  } catch (error) {
+    console.log(error);
+  }
+});
+
+router.get("/get-draft-forms/:userId", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+        select * from draft_forms
+        where created_by_id = $1
+        and is_published = false
+      `,
+      [req.params.userId]
+    );
+
+    if (!result) throw new Error("There was an error fetching draft forms");
+
+    res.send(result.rows);
+  } catch (error) {
+    console.log(error);
+  }
+});
+
+router.get("/get-published-form-as-user/:formId", async (req, res) => {
   try {
     const result = await pool.query(
       `
@@ -42,14 +95,72 @@ router.get("/get-form-as-user/:formId", async (req, res) => {
     if (!result2)
       throw new Error("Something happened while trying to get input types for this form");
 
-    const inputs = result2.rows
+    const inputs = result2.rows;
+
+    const result3 = await pool.query(
+      `
+      select a.*, 
+      b.* from user_created_input_property_values a
+      inner join input_properties b
+      on a.property_id = b.id
+      inner join user_created_inputs c 
+      on a.created_input_id = c.id
+      where c.form_id = $1
+    `,
+      [form.id]
+    );
+
+    const properties = result3.rows;
 
     res.send({
       form,
-      inputs
-    })
+      inputs,
+      properties,
+    });
+  } catch (error) {
+    console.log(error);
+  }
+});
 
-    console.log(result2.rows);
+router.get("/get-draft-form/:formId", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+      select * from draft_forms
+      where id = $1
+    `,
+      [req.params.formId]
+    );
+
+    if (!result) throw new Error("There was an error getting this form");
+
+    if (!result.rows[0]) throw new Error("No form was found");
+
+    const form = result.rows[0];
+
+    const result2 = await pool.query(
+      `
+      select a.*, 
+      b.name input_type_name,
+      b.description input_type_description
+      from draft_user_created_inputs a
+      inner join input_types b
+      on a.input_type_id = b.id
+      where draft_form_id = $1
+      and eff_status = 1
+    `,
+      [form.id]
+    );
+
+    if (!result2)
+      throw new Error("Something happened while trying to get input types for this form");
+
+    const inputs = result2.rows;
+
+    res.send({
+      form,
+      inputs,
+    });
   } catch (error) {
     console.log(error);
   }
@@ -128,7 +239,7 @@ router.get(
       const draft: {
         form: {
           id: number;
-          name: string;
+          title: string;
           description: string;
           passkey: string;
           eff_status: number;
@@ -211,7 +322,7 @@ router.post(
       const result = await pool.query(
         `
         insert into draft_forms (
-          name,
+          title,
           description,
           passkey,
           is_published,
@@ -281,11 +392,11 @@ router.put(
   "/update-draft",
   async (req: UpdateDraftRequest, res: Response): Promise<void> => {
     try {
-      const result = await pool.query(
+      const result2 = await pool.query(
         `
         update draft_forms 
         set 
-          name = $1,
+          title = $1,
           description = $2,
           passkey = $3,
           modified_by_id = $4,
@@ -302,11 +413,11 @@ router.put(
         ]
       );
 
-      if (!result) throw new Error("There was an error updating the form draft");
+      if (!result2) throw new Error("There was an error updating the form draft");
 
-      if (!result.rows[0]) throw new Error("New form draft was not updated");
+      if (!result2.rows[0]) throw new Error("New form draft was not updated");
 
-      res.send(result.rows[0]);
+      res.send(result2.rows[0]);
     } catch (error) {
       console.log(error);
     }
@@ -452,7 +563,7 @@ router.post("/publish", async (req, res) => {
         `
         insert into forms (
           draft_id,
-          name,
+          title,
           description,
           passkey,
           eff_status,
@@ -465,7 +576,7 @@ router.post("/publish", async (req, res) => {
         )
         select
           a.id,
-          a.name,
+          a.title,
           a.description,
           a.passkey,
           1,
@@ -539,10 +650,11 @@ router.post("/publish", async (req, res) => {
 
       console.log(`Moved over ${result.rowCount} user created inputs`);
 
-      let insertedPropertyValues = 0;
+      let insertedPropertyInputs = 0;
+
+      let alreadySentToClient = false;
 
       result3.rows.forEach(async (input, i) => {
-        console.log(input);
         const result4 = await pool.query(
           `
           insert into user_created_input_property_values (
@@ -576,21 +688,27 @@ router.post("/publish", async (req, res) => {
           [input.id, req.body.userId]
         );
 
-        insertedPropertyValues += 1;
+        insertedPropertyInputs += 1;
 
-        if (insertedPropertyValues === result3.rows.length - 1) {
+        if (insertedPropertyInputs === result3.rows.length) {
+          console.log("Sending to client");
+          alreadySentToClient = true;
           res.send(result.rows);
           return;
         }
       });
 
-      if (insertedPropertyValues === 0 && !result2.rows.length) {
+      if (insertedPropertyInputs === 0 && !result3.rows.length) {
+        console.log("Also sending here", insertedPropertyInputs, result3.rows.length);
         res.send(result.rows);
         return;
+      } else {
+        console.log("Swag???", insertedPropertyInputs, result3.rows.length);
       }
+    } else {
+      console.log("indeed sending here as well");
+      res.send(result.rows);
     }
-
-    res.send(result.rows);
   } catch (error) {
     console.log(error);
   }
