@@ -15,6 +15,7 @@ router.get("/get-forms/:userId", async (req, res) => {
       `
       select * from forms
       where created_by_id = $1
+      order by modified_at, created_at desc
     `,
       [req.params.userId]
     );
@@ -26,6 +27,7 @@ router.get("/get-forms/:userId", async (req, res) => {
         select * from draft_forms
         where created_by_id = $1
         and is_published = false
+        order by modified_at, created_at desc
       `,
       [req.params.userId]
     );
@@ -50,6 +52,7 @@ router.get("/get-draft-forms/:userId", async (req, res) => {
         select * from draft_forms
         where created_by_id = $1
         and is_published = false
+        order by modified_at, created_at desc
       `,
       [req.params.userId]
     );
@@ -95,7 +98,7 @@ router.get("/get-published-form-as-user/:formId", async (req, res) => {
     if (!result2)
       throw new Error("Something happened while trying to get input types for this form");
 
-    const inputs = result2.rows;
+    let inputs = result2.rows;
 
     const result3 = await pool.query(
       `
@@ -110,12 +113,26 @@ router.get("/get-published-form-as-user/:formId", async (req, res) => {
       [form.id]
     );
 
-    const properties = result3.rows;
+    let properties = result3.rows;
+    let propertiesObj = {};
+
+    properties.forEach((property) => {
+      if (!propertiesObj[`${property.created_input_id}`])
+        propertiesObj[`${property.created_input_id}`] = {};
+      propertiesObj[`${property.created_input_id}`][property.property_key] = property;
+    });
+
+    inputs = inputs.map((input) => {
+      return {
+        ...input,
+        properties: propertiesObj[input.id],
+      };
+    });
 
     res.send({
       form,
       inputs,
-      properties,
+      propertiesObj,
     });
   } catch (error) {
     console.log(error);
@@ -155,11 +172,41 @@ router.get("/get-draft-form/:formId", async (req, res) => {
     if (!result2)
       throw new Error("Something happened while trying to get input types for this form");
 
-    const inputs = result2.rows;
+    let inputs = result2.rows;
+
+    const result3 = await pool.query(
+      `
+      select a.*, 
+      b.* from draft_user_created_input_property_values a
+      inner join input_properties b
+      on a.property_id = b.id
+      inner join draft_user_created_inputs c 
+      on a.created_input_id = c.id
+      where c.draft_form_id = $1
+    `,
+      [form.id]
+    );
+
+    let properties = result3.rows;
+    let propertiesObj = {};
+
+    properties.forEach((property) => {
+      if (!propertiesObj[`${property.created_input_id}`])
+        propertiesObj[`${property.created_input_id}`] = {};
+      propertiesObj[`${property.created_input_id}`][property.property_key] = property;
+    });
+
+    inputs = inputs.map((input) => {
+      return {
+        ...input,
+        properties: propertiesObj[input.id],
+      };
+    });
 
     res.send({
       form,
       inputs,
+      propertiesObj,
     });
   } catch (error) {
     console.log(error);
@@ -432,7 +479,7 @@ router.post("/add-new-input-to-draft", async (req, res) => {
         insert into draft_user_created_inputs (
           input_type_id,
           draft_form_id,
-          metadata_name,
+          metadata_question,
           metadata_description,
           is_active,
           eff_status,
@@ -462,7 +509,7 @@ router.post("/add-new-input-to-draft", async (req, res) => {
       [
         req.body.input.input_type_id,
         req.body.form.id,
-        req.body.input.metadata_name,
+        req.body.input.metadata_question,
         req.body.input.metadata_description,
         req.body.userId,
       ]
@@ -614,7 +661,7 @@ router.post("/publish", async (req, res) => {
         insert into user_created_inputs (
           input_type_id,
           form_id,
-          metadata_name ,
+          metadata_question ,
           metadata_description,
           is_active,
           eff_status,
@@ -628,7 +675,7 @@ router.post("/publish", async (req, res) => {
         select
           a.input_type_id,
           $1,
-          a.metadata_name,
+          a.metadata_question,
           a.metadata_description,
           a.is_active,
           a.eff_status,
@@ -655,6 +702,7 @@ router.post("/publish", async (req, res) => {
       let alreadySentToClient = false;
 
       result3.rows.forEach(async (input, i) => {
+        console.log("swiggity", input.id, req.body.userId, newForm.draft_id);
         const result4 = await pool.query(
           `
           insert into user_created_input_property_values (
@@ -683,9 +731,11 @@ router.post("/publish", async (req, res) => {
           from draft_user_created_input_property_values a
           inner join draft_user_created_inputs b
           on a.created_input_id = b.id
-          where a.created_input_id = $1
+          inner join draft_forms c
+          on b.draft_form_id = c.id
+          where c.id = $3
         `,
-          [input.id, req.body.userId]
+          [input.id, req.body.userId, newForm.draft_id]
         );
 
         insertedPropertyInputs += 1;
