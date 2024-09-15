@@ -65,12 +65,12 @@ router.get("/get-forms/:userId", function (req, res) { return __awaiter(void 0, 
         switch (_a.label) {
             case 0:
                 _a.trys.push([0, 3, , 4]);
-                return [4 /*yield*/, database_js_1.pool.query("\n      select * from forms\n      where created_by_id = $1\n      order by modified_at, created_at desc\n    ", [req.params.userId])];
+                return [4 /*yield*/, database_js_1.pool.query("\n      select * from forms\n      where created_by_id = $1\n      and is_deleted = false\n      order by modified_at, created_at desc\n    ", [req.params.userId])];
             case 1:
                 result = _a.sent();
                 if (!result)
                     throw new Error("There was an error fetching published forms");
-                return [4 /*yield*/, database_js_1.pool.query("\n        select * from draft_forms\n        where created_by_id = $1\n        and is_published = false\n        order by modified_at, created_at desc\n      ", [req.params.userId])];
+                return [4 /*yield*/, database_js_1.pool.query("\n        select * from draft_forms\n        where created_by_id = $1\n        and is_published = false\n        and is_deleted = false\n        order by modified_at, created_at desc\n      ", [req.params.userId])];
             case 2:
                 result2 = _a.sent();
                 if (!result2)
@@ -163,13 +163,14 @@ router.get("/get-draft-form/:formId", function (req, res) { return __awaiter(voi
         switch (_a.label) {
             case 0:
                 _a.trys.push([0, 4, , 5]);
-                return [4 /*yield*/, database_js_1.pool.query("\n      select * from draft_forms\n      where id = $1\n    ", [req.params.formId])];
+                return [4 /*yield*/, database_js_1.pool.query("\n      select * from draft_forms\n      where id = $1\n      and is_deleted = false\n    ", [req.params.formId])];
             case 1:
                 result = _a.sent();
                 if (!result)
                     throw new Error("There was an error getting this form");
-                if (!result.rows[0])
-                    throw new Error("No form was found");
+                if (!result.rows[0]) {
+                    res.send([]);
+                }
                 form = result.rows[0];
                 return [4 /*yield*/, database_js_1.pool.query("\n      select a.*, \n      b.name input_type_name,\n      b.description input_type_description\n      from draft_user_created_inputs a\n      inner join input_types b\n      on a.input_type_id = b.id\n      where draft_form_id = $1\n      and is_deleted = true\n    ", [form.id])];
             case 2:

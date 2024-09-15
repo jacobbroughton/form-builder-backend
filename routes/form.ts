@@ -15,6 +15,7 @@ router.get("/get-forms/:userId", async (req, res) => {
       `
       select * from forms
       where created_by_id = $1
+      and is_deleted = false
       order by modified_at, created_at desc
     `,
       [req.params.userId]
@@ -27,6 +28,7 @@ router.get("/get-forms/:userId", async (req, res) => {
         select * from draft_forms
         where created_by_id = $1
         and is_published = false
+        and is_deleted = false
         order by modified_at, created_at desc
       `,
       [req.params.userId]
@@ -145,13 +147,16 @@ router.get("/get-draft-form/:formId", async (req, res) => {
       `
       select * from draft_forms
       where id = $1
+      and is_deleted = false
     `,
       [req.params.formId]
     );
 
     if (!result) throw new Error("There was an error getting this form");
 
-    if (!result.rows[0]) throw new Error("No form was found");
+    if (!result.rows[0]) {
+      res.send([])
+    }
 
     const form = result.rows[0];
 
