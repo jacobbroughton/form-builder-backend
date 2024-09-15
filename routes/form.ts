@@ -155,7 +155,7 @@ router.get("/get-draft-form/:formId", async (req, res) => {
     if (!result) throw new Error("There was an error getting this form");
 
     if (!result.rows[0]) {
-      res.send([])
+      res.send([]);
     }
 
     const form = result.rows[0];
@@ -310,7 +310,7 @@ router.get(
         `
           select * from draft_forms
           where created_by_id = $1
-          and is_deleted = true
+          and is_deleted = false
           and is_published = false
         `,
         [userId]
