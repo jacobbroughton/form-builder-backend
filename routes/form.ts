@@ -90,7 +90,7 @@ router.get("/get-published-form-as-user/:formId", async (req, res) => {
       inner join input_types b
       on a.input_type_id = b.id
       where form_id = $1
-      and eff_status = 1
+      and is_deleted = true
     `,
       [form.id]
     );
@@ -164,7 +164,7 @@ router.get("/get-draft-form/:formId", async (req, res) => {
       inner join input_types b
       on a.input_type_id = b.id
       where draft_form_id = $1
-      and eff_status = 1
+      and is_deleted = true
     `,
       [form.id]
     );
@@ -289,7 +289,7 @@ router.get(
           title: string;
           description: string;
           passkey: string;
-          eff_status: number;
+          is_deleted: boolean;
           created_by_id: number;
           created_at: string;
           modified_by_id: number;
@@ -305,7 +305,7 @@ router.get(
         `
           select * from draft_forms
           where created_by_id = $1
-          and eff_status = 1
+          and is_deleted = true
           and is_published = false
         `,
         [userId]
@@ -333,10 +333,7 @@ router.get(
         from draft_user_created_inputs a
         inner join input_types b
         on a.input_type_id = b.id
-        -- left join draft_user_created_input_property_values c
-        -- on a.id = c.created_input_id
         where a.draft_form_id = $1
-        --and a.eff_status = 1
         order by a.id asc
       `,
         [draft.form.id]
@@ -373,7 +370,6 @@ router.post(
           description,
           passkey,
           is_published,
-          eff_status,
           created_by_id,
           created_at,
           modified_by_id,
@@ -383,7 +379,6 @@ router.post(
           '',
           null,
           false,
-          1,
           $1,
           now(),
           null,
@@ -482,7 +477,6 @@ router.post("/add-new-input-to-draft", async (req, res) => {
           metadata_question,
           metadata_description,
           is_active,
-          eff_status,
           created_at,
           created_by_id,
           modified_by_id,
@@ -493,7 +487,6 @@ router.post("/add-new-input-to-draft", async (req, res) => {
           $3,
           $4,
           true,
-          1,
           now(),
           $5,
           null,
@@ -613,7 +606,7 @@ router.post("/publish", async (req, res) => {
           title,
           description,
           passkey,
-          eff_status,
+          is_deleted,
           published_by_id,
           published_at,
           created_by_id,
@@ -664,7 +657,7 @@ router.post("/publish", async (req, res) => {
           metadata_question ,
           metadata_description,
           is_active,
-          eff_status,
+          is_deleted,
           published_at,
           published_by_id,
           created_at,
@@ -678,7 +671,7 @@ router.post("/publish", async (req, res) => {
           a.metadata_question,
           a.metadata_description,
           a.is_active,
-          a.eff_status,
+          a.is_deleted,
           now(),
           $2,
           a.created_at,
@@ -759,6 +752,54 @@ router.post("/publish", async (req, res) => {
       console.log("indeed sending here as well");
       res.send(result.rows);
     }
+  } catch (error) {
+    console.log(error);
+  }
+});
+
+router.put(`/delete-draft-form/:formId`, async (req, res) => {
+  try {
+    if (!req.params.formId) throw new Error("No form ID provided, cancelling deletion");
+
+    const result = await pool.query(
+      `
+      update draft_forms
+      set is_deleted = true
+      where id = $1
+      returning *
+    `,
+      [req.params.formId]
+    );
+
+    if (!result) throw new Error("There was an error deleting this draft form");
+
+    console.log("Deleted form. ID:", req.params.formId);
+
+    res.send(result.rows);
+  } catch (error) {
+    console.log(error);
+  }
+});
+
+router.put(`/delete-published-form/:formId`, async (req, res) => {
+  try {
+    if (!req.params.formId) throw new Error("No form ID provided, cancelling deletion");
+
+    const result = await pool.query(
+      `
+      update forms
+      set is_deleted = true
+      where id = $1
+      returning *
+    `,
+      [req.params.formId]
+    );
+
+    if (!result) throw new Error("There was an error deleting this published form");
+
+    console.log("Deleted form. ID:", req.params.formId);
+
+    res.send(result.rows);
   } catch (error) {
     console.log(error);
   }
