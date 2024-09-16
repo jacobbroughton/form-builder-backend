@@ -11,37 +11,88 @@ const router = express.Router();
 
 router.get("/get-forms/:userId", async (req, res) => {
   try {
+    // const result = await pool.query(
+    //   `
+    // select * from forms
+    // where created_by_id = $1
+    // and is_deleted = false
+    // order by modified_at, created_at desc
+    // `,
+    //   [req.params.userId]
+    // );
+
     const result = await pool.query(
       `
+      with public as (
       select * from forms
       where created_by_id = $1
       and is_deleted = false
       order by modified_at, created_at desc
+    ) ,
+    draft as (
+      select * from draft_forms
+        where created_by_id = $1
+        and is_published = false
+        and is_deleted = false
+        order by modified_at desc, created_at desc
+    )
+     
+
+    select 
+      id, 
+      --draft_id, 
+      title, 
+      description, 
+      passkey, 
+      is_deleted, 
+      --published_by_id,
+      published_at relevant_dt, 
+      created_by_id, 
+      created_at, 
+      modified_by_id, 
+      modified_at,
+      false is_draft
+    from public 
+    union all 
+    select 
+      id, 
+      title, 
+      description, 
+      passkey, 
+      --is_published, 
+      is_deleted, 
+      created_at relevant_dt,
+      created_by_id,
+      created_at, 
+      modified_by_id, 
+      modified_at,
+      true is_draft
+    from draft
     `,
       [req.params.userId]
     );
 
     if (!result) throw new Error("There was an error fetching published forms");
 
-    const result2 = await pool.query(
-      `
-        select * from draft_forms
-        where created_by_id = $1
-        and is_published = false
-        and is_deleted = false
-        order by modified_at desc, created_at desc
-      `,
-      [req.params.userId]
-    );
+    // const result2 = await pool.query(
+    //   `
+    //     select * from draft_forms
+    //     where created_by_id = $1
+    //     and is_published = false
+    //     and is_deleted = false
+    //     order by modified_at desc, created_at desc
+    //   `,
+    //   [req.params.userId]
+    // );
 
-    if (!result2) throw new Error("There was an error fetching draft forms");
+    // if (!result2) throw new Error("There was an error fetching draft forms");
 
-    let forms = {
-      drafts: result2.rows,
-      published: result.rows,
-    };
+    // let forms = {
+    //   drafts: result2.rows,
+    //   published: result.rows,
+    // };
 
-    res.send(forms);
+    res.send(result.rows);
   } catch (error) {
     console.log(error);
   }
@@ -454,13 +505,7 @@ router.put(
         where id = $5
         returning *
       `,
-        [
-          req.body.title,
-          req.body.description,
-          null,
-          req.body.userId,
-          req.body.formId,
-        ]
+        [req.body.title, req.body.description, null, req.body.userId, req.body.formId]
       );
 
       if (!result2) throw new Error("There was an error updating the form draft");
@@ -474,17 +519,21 @@ router.put(
   }
 );
 
-router.post("/add-new-input-to-draft", async (req, res) => {
+router.post("/add-new-input-to-form", async (req, res) => {
   try {
     const result1 = await pool.query(
       `
       with inserted as (
-        insert into draft_user_created_inputs (
+        insert into ${
+          req.body.isForDraft ? "draft_user_created_inputs" : "user_created_inputs"
+        } (
           input_type_id,
-          draft_form_id,
+          ${req.body.isForDraft ? "draft_form_id" : "form_id"},
           metadata_question,
           metadata_description,
           is_active,
+          ${req.body.isForDraft ? "" : "published_at,"}
+          ${req.body.isForDraft ? "" : "published_by_id,"}
           created_at,
           created_by_id,
           modified_by_id,
@@ -495,6 +544,8 @@ router.post("/add-new-input-to-draft", async (req, res) => {
           $3,
           $4,
           true,
+          ${req.body.isForDraft ? "" : "now(),"}
+          ${req.body.isForDraft ? "" : "$5,"}
           now(),
           $5,
           null,
@@ -526,11 +577,17 @@ router.post("/add-new-input-to-draft", async (req, res) => {
       req.body.input.properties.forEach(async (property, i) => {
         const result = await pool.query(
           `
-          insert into draft_user_created_input_property_values (
+          insert into ${
+            req.body.isForDraft
+              ? "draft_user_created_input_property_values"
+              : "user_created_input_property_values"
+          } (
             created_input_id, 
             property_id, 
             input_type_id, 
             value,
+            ${req.body.isForDraft ? "" : "published_at,"}
+            ${req.body.isForDraft ? "" : "published_by_id,"}
             created_at,
             created_by_id, 
             modified_by_id, 
@@ -540,6 +597,8 @@ router.post("/add-new-input-to-draft", async (req, res) => {
             $2,
             $3,
             $4,
+            ${req.body.isForDraft ? "" : "now(),"}
+            ${req.body.isForDraft ? "" : "$5,"}
             now(),
             $5,
             null,

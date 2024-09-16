@@ -60,32 +60,38 @@ var express = require("express");
 var database_js_1 = require("../config/database.js");
 var router = express.Router();
 router.get("/get-forms/:userId", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
-    var result, result2, forms, error_1;
+    var result, error_1;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
-                _a.trys.push([0, 3, , 4]);
-                return [4 /*yield*/, database_js_1.pool.query("\n      select * from forms\n      where created_by_id = $1\n      and is_deleted = false\n      order by modified_at, created_at desc\n    ", [req.params.userId])];
+                _a.trys.push([0, 2, , 3]);
+                return [4 /*yield*/, database_js_1.pool.query("\n      with public as (\n      select * from forms\n      where created_by_id = $1\n      and is_deleted = false\n      order by modified_at, created_at desc\n    ) ,\n    draft as (\n      select * from draft_forms\n        where created_by_id = $1\n        and is_published = false\n        and is_deleted = false\n        order by modified_at desc, created_at desc\n    )\n     \n\n    select \n      id, \n      --draft_id, \n      title, \n      description, \n      passkey, \n      is_deleted, \n      --published_by_id,\n      published_at relevant_dt, \n      created_by_id, \n      created_at, \n      modified_by_id, \n      modified_at,\n      false is_draft\n    from public \n    union all \n    select \n      id, \n      title, \n      description, \n      passkey, \n      --is_published, \n      is_deleted, \n      created_at relevant_dt,\n      created_by_id,\n      created_at, \n      modified_by_id, \n      modified_at,\n      true is_draft\n    from draft\n    ", [req.params.userId])];
             case 1:
                 result = _a.sent();
                 if (!result)
                     throw new Error("There was an error fetching published forms");
-                return [4 /*yield*/, database_js_1.pool.query("\n        select * from draft_forms\n        where created_by_id = $1\n        and is_published = false\n        and is_deleted = false\n        order by modified_at desc, created_at desc\n      ", [req.params.userId])];
+                // const result2 = await pool.query(
+                //   `
+                //     select * from draft_forms
+                //     where created_by_id = $1
+                //     and is_published = false
+                //     and is_deleted = false
+                //     order by modified_at desc, created_at desc
+                //   `,
+                //   [req.params.userId]
+                // );
+                // if (!result2) throw new Error("There was an error fetching draft forms");
+                // let forms = {
+                //   drafts: result2.rows,
+                //   published: result.rows,
+                // };
+                res.send(result.rows);
+                return [3 /*break*/, 3];
             case 2:
-                result2 = _a.sent();
-                if (!result2)
-                    throw new Error("There was an error fetching draft forms");
-                forms = {
-                    drafts: result2.rows,
-                    published: result.rows,
-                };
-                res.send(forms);
-                return [3 /*break*/, 4];
-            case 3:
                 error_1 = _a.sent();
                 console.log(error_1);
-                return [3 /*break*/, 4];
-            case 4: return [2 /*return*/];
+                return [3 /*break*/, 3];
+            case 3: return [2 /*return*/];
         }
     });
 }); });
@@ -339,13 +345,7 @@ router.put("/update-form", function (req, res) { return __awaiter(void 0, void 0
         switch (_a.label) {
             case 0:
                 _a.trys.push([0, 2, , 3]);
-                return [4 /*yield*/, database_js_1.pool.query("\n        update ".concat(req.body.isForDraft ? "draft-forms" : "forms", "\n        set \n          title = $1,\n          description = $2,\n          passkey = $3,\n          modified_by_id = $4,\n          modified_at = now()\n        where id = $5\n        returning *\n      "), [
-                        req.body.title,
-                        req.body.description,
-                        null,
-                        req.body.userId,
-                        req.body.formId,
-                    ])];
+                return [4 /*yield*/, database_js_1.pool.query("\n        update ".concat(req.body.isForDraft ? "draft-forms" : "forms", "\n        set \n          title = $1,\n          description = $2,\n          passkey = $3,\n          modified_by_id = $4,\n          modified_at = now()\n        where id = $5\n        returning *\n      "), [req.body.title, req.body.description, null, req.body.userId, req.body.formId])];
             case 1:
                 result2 = _a.sent();
                 if (!result2)
@@ -362,13 +362,13 @@ router.put("/update-form", function (req, res) { return __awaiter(void 0, void 0
         }
     });
 }); });
-router.post("/add-new-input-to-draft", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+router.post("/add-new-input-to-form", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
     var result1_1, createdInput_1, numCustomProperties_1, error_11;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
                 _a.trys.push([0, 2, , 3]);
-                return [4 /*yield*/, database_js_1.pool.query("\n      with inserted as (\n        insert into draft_user_created_inputs (\n          input_type_id,\n          draft_form_id,\n          metadata_question,\n          metadata_description,\n          is_active,\n          created_at,\n          created_by_id,\n          modified_by_id,\n          modified_at\n        ) values (\n          $1,\n          $2,\n          $3,\n          $4,\n          true,\n          now(),\n          $5,\n          null,\n          null\n        ) returning * \n      )\n      select a.*,\n      b.name input_type_name\n      from inserted a\n      join input_types b\n      on a.input_type_id = b.id\n    ", [
+                return [4 /*yield*/, database_js_1.pool.query("\n      with inserted as (\n        insert into ".concat(req.body.isForDraft ? "draft_user_created_inputs" : "user_created_inputs", " (\n          input_type_id,\n          ").concat(req.body.isForDraft ? "draft_form_id" : "form_id", ",\n          metadata_question,\n          metadata_description,\n          is_active,\n          ").concat(req.body.isForDraft ? "" : "published_at,", "\n          ").concat(req.body.isForDraft ? "" : "published_by_id,", "\n          created_at,\n          created_by_id,\n          modified_by_id,\n          modified_at\n        ) values (\n          $1,\n          $2,\n          $3,\n          $4,\n          true,\n          ").concat(req.body.isForDraft ? "" : "now(),", "\n          ").concat(req.body.isForDraft ? "" : "$5,", "\n          now(),\n          $5,\n          null,\n          null\n        ) returning * \n      )\n      select a.*,\n      b.name input_type_name\n      from inserted a\n      join input_types b\n      on a.input_type_id = b.id\n    "), [
                         req.body.input.input_type_id,
                         req.body.form.id,
                         req.body.input.metadata_question,
@@ -386,7 +386,9 @@ router.post("/add-new-input-to-draft", function (req, res) { return __awaiter(vo
                         var result;
                         return __generator(this, function (_a) {
                             switch (_a.label) {
-                                case 0: return [4 /*yield*/, database_js_1.pool.query("\n          insert into draft_user_created_input_property_values (\n            created_input_id, \n            property_id, \n            input_type_id, \n            value,\n            created_at,\n            created_by_id, \n            modified_by_id, \n            modified_at\n          ) values (\n            $1,\n            $2,\n            $3,\n            $4,\n            now(),\n            $5,\n            null,\n            null\n          ) \n        ", [
+                                case 0: return [4 /*yield*/, database_js_1.pool.query("\n          insert into ".concat(req.body.isForDraft
+                                        ? "draft_user_created_input_property_values"
+                                        : "user_created_input_property_values", " (\n            created_input_id, \n            property_id, \n            input_type_id, \n            value,\n            ").concat(req.body.isForDraft ? "" : "published_at,", "\n            ").concat(req.body.isForDraft ? "" : "published_by_id,", "\n            created_at,\n            created_by_id, \n            modified_by_id, \n            modified_at\n          ) values (\n            $1,\n            $2,\n            $3,\n            $4,\n            ").concat(req.body.isForDraft ? "" : "now(),", "\n            ").concat(req.body.isForDraft ? "" : "$5,", "\n            now(),\n            $5,\n            null,\n            null\n          ) \n        "), [
                                         createdInput_1.id,
                                         property.id,
                                         createdInput_1.input_type_id,
