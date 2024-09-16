@@ -29,7 +29,7 @@ router.get("/get-forms/:userId", async (req, res) => {
         where created_by_id = $1
         and is_published = false
         and is_deleted = false
-        order by modified_at, created_at desc
+        order by modified_at desc, created_at desc
       `,
       [req.params.userId]
     );
@@ -54,7 +54,8 @@ router.get("/get-draft-forms/:userId", async (req, res) => {
         select * from draft_forms
         where created_by_id = $1
         and is_published = false
-        order by modified_at, created_at desc
+        and is_deleted = false
+        order by modified_at desc, created_at desc
       `,
       [req.params.userId]
     );
@@ -67,7 +68,7 @@ router.get("/get-draft-forms/:userId", async (req, res) => {
   }
 });
 
-router.get("/get-published-form-as-user/:formId", async (req, res) => {
+router.get("/get-published-form/:formId", async (req, res) => {
   try {
     const result = await pool.query(
       `
@@ -92,7 +93,8 @@ router.get("/get-published-form-as-user/:formId", async (req, res) => {
       inner join input_types b
       on a.input_type_id = b.id
       where form_id = $1
-      and is_deleted = true
+      and is_deleted = false
+      and is_active = true
     `,
       [form.id]
     );
@@ -169,7 +171,7 @@ router.get("/get-draft-form/:formId", async (req, res) => {
       inner join input_types b
       on a.input_type_id = b.id
       where draft_form_id = $1
-      and is_deleted = true
+      and is_deleted = false
     `,
       [form.id]
     );
@@ -406,7 +408,7 @@ router.post(
 );
 
 interface UpdateDraftBody {
-  draftFormId: string;
+  formId: string;
   title: string;
   description: string;
   userId: number;
@@ -429,6 +431,7 @@ interface UpdateDraftBody {
       value: string;
     }[];
   }[];
+  isForDraft: boolean;
 }
 
 interface UpdateDraftRequest extends Request {
@@ -436,12 +439,12 @@ interface UpdateDraftRequest extends Request {
 }
 
 router.put(
-  "/update-draft",
+  "/update-form",
   async (req: UpdateDraftRequest, res: Response): Promise<void> => {
     try {
       const result2 = await pool.query(
         `
-        update draft_forms 
+        update ${req.body.isForDraft ? "draft-forms" : "forms"}
         set 
           title = $1,
           description = $2,
@@ -456,7 +459,7 @@ router.put(
           req.body.description,
           null,
           req.body.userId,
-          req.body.draftFormId,
+          req.body.formId,
         ]
       );
 
@@ -571,11 +574,11 @@ router.post("/add-new-input-to-draft", async (req, res) => {
   }
 });
 
-router.put("/change-draft-input-enabled-status/:inputId", async (req, res) => {
+router.put("/change-input-enabled-status/:inputId", async (req, res) => {
   try {
     const result = await pool.query(
       `
-      update draft_user_created_inputs
+      update ${req.body.isDraft ? "draft_user_created_inputs" : "user_created_inputs"} 
       set is_active = $1
       where id = $2
       returning *
@@ -624,7 +627,7 @@ router.post("/publish", async (req, res) => {
           a.title,
           a.description,
           a.passkey,
-          1,
+          false,
           $2,
           now(),
           a.created_by_id,
