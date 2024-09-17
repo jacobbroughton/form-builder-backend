@@ -59,7 +59,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var express = require("express");
 var database_js_1 = require("../config/database.js");
 var router = express.Router();
-router.get("/get-forms/:userId", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+router.get("/get-all-forms/:userId", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
     var result, error_1;
     return __generator(this, function (_a) {
         switch (_a.label) {
@@ -318,24 +318,34 @@ router.get("/check-for-existing-draft", function (req, res) { return __awaiter(v
     });
 }); });
 router.post("/store-initial-draft", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
-    var result, error_9;
+    var result, result2, result2, error_9;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
-                _a.trys.push([0, 2, , 3]);
-                return [4 /*yield*/, database_js_1.pool.query("\n        insert into draft_forms (\n          title,\n          description,\n          passkey,\n          is_published,\n          created_by_id,\n          created_at,\n          modified_by_id,\n          modified_at\n        ) values (\n          'Untitled',\n          '',\n          null,\n          false,\n          $1,\n          now(),\n          null,\n          null\n        )\n        returning *\n      ", [req.body.userId])];
+                _a.trys.push([0, 6, , 7]);
+                return [4 /*yield*/, database_js_1.pool.query("\n        select * from draft_forms\n        where created_by_id = $1\n        and description = ''\n        and title = 'Untitled'\n        and modified_at is null\n        and is_deleted = false\n      ", [req.body.userId])];
             case 1:
                 result = _a.sent();
-                if (!result)
-                    throw new Error("There was an error adding an initial form draft");
-                result.rows[0];
-                res.send(result.rows[0]);
-                return [3 /*break*/, 3];
+                if (!!result.rows[0]) return [3 /*break*/, 3];
+                return [4 /*yield*/, database_js_1.pool.query("\n          insert into draft_forms (\n            title,\n            description,\n            passkey,\n            is_published,\n            created_by_id,\n            created_at,\n            modified_by_id,\n            modified_at\n          ) values (\n            'Untitled',\n            '',\n            null,\n            false,\n            $1,\n            now(),\n            null,\n            null\n          )\n          returning *\n        ", [req.body.userId])];
             case 2:
+                result2 = _a.sent();
+                if (!result2)
+                    throw new Error("There was an error adding an initial form draft");
+                result2.rows[0];
+                res.send(result2.rows[0]);
+                return [3 /*break*/, 5];
+            case 3: return [4 /*yield*/, database_js_1.pool.query("\n          update draft_forms\n          set created_at = now()\n          where id = $1\n          returning *\n        ", [result.rows[0].id])];
+            case 4:
+                result2 = _a.sent();
+                res.send(result2.rows[0]);
+                _a.label = 5;
+            case 5: return [3 /*break*/, 7];
+            case 6:
                 error_9 = _a.sent();
                 console.log(error_9);
-                return [3 /*break*/, 3];
-            case 3: return [2 /*return*/];
+                return [3 /*break*/, 7];
+            case 7: return [2 /*return*/];
         }
     });
 }); });
@@ -559,6 +569,27 @@ router.put("/delete-published-form/:formId", function (req, res) { return __awai
             case 2:
                 error_15 = _a.sent();
                 console.log(error_15);
+                return [3 /*break*/, 3];
+            case 3: return [2 /*return*/];
+        }
+    });
+}); });
+router.get("/check-for-existing-empty-draft/:formId", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+    var result, error_16;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0:
+                _a.trys.push([0, 2, , 3]);
+                return [4 /*yield*/, database_js_1.pool.query("\n      select * from draft_forms\n      where created_by_id = $1\n      and description = ''\n      and title = 'Untitled'\n      and modified_at is null\n    ", [req.params.formId])];
+            case 1:
+                result = _a.sent();
+                if (!result)
+                    throw new Error("There was an error checking for existing empty draft");
+                res.send(result.rows);
+                return [3 /*break*/, 3];
+            case 2:
+                error_16 = _a.sent();
+                console.log(error_16);
                 return [3 /*break*/, 3];
             case 3: return [2 /*return*/];
         }

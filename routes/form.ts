@@ -9,7 +9,7 @@ import { Request, Response } from "express";
 
 const router = express.Router();
 
-router.get("/get-forms/:userId", async (req, res) => {
+router.get("/get-all-forms/:userId", async (req, res) => {
   try {
     // const result = await pool.query(
     //   `
@@ -423,35 +423,61 @@ router.post(
     try {
       const result = await pool.query(
         `
-        insert into draft_forms (
-          title,
-          description,
-          passkey,
-          is_published,
-          created_by_id,
-          created_at,
-          modified_by_id,
-          modified_at
-        ) values (
-          'Untitled',
-          '',
-          null,
-          false,
-          $1,
-          now(),
-          null,
-          null
-        )
-        returning *
+        select * from draft_forms
+        where created_by_id = $1
+        and description = ''
+        and title = 'Untitled'
+        and modified_at is null
+        and is_deleted = false
       `,
         [req.body.userId]
       );
 
-      if (!result) throw new Error("There was an error adding an initial form draft");
+      if (!result.rows[0]) {
+        const result2 = await pool.query(
+          `
+          insert into draft_forms (
+            title,
+            description,
+            passkey,
+            is_published,
+            created_by_id,
+            created_at,
+            modified_by_id,
+            modified_at
+          ) values (
+            'Untitled',
+            '',
+            null,
+            false,
+            $1,
+            now(),
+            null,
+            null
+          )
+          returning *
+        `,
+          [req.body.userId]
+        );
 
-      result.rows[0];
+        if (!result2) throw new Error("There was an error adding an initial form draft");
 
-      res.send(result.rows[0]);
+        result2.rows[0];
+
+        res.send(result2.rows[0]);
+      } else {
+        const result2 = await pool.query(
+          `
+          update draft_forms
+          set created_at = now()
+          where id = $1
+          returning *
+        `,
+          [result.rows[0].id]
+        );
+
+        res.send(result2.rows[0]);
+      }
     } catch (error) {
       console.log(error);
     }
