@@ -11,16 +11,6 @@ const router = express.Router();
 
 router.get("/get-all-forms/:userId", async (req, res) => {
   try {
-    // const result = await pool.query(
-    //   `
-    // select * from forms
-    // where created_by_id = $1
-    // and is_deleted = false
-    // order by modified_at, created_at desc
-    // `,
-    //   [req.params.userId]
-    // );
-
     const result = await pool.query(
       `
       with public as (
@@ -37,7 +27,6 @@ router.get("/get-all-forms/:userId", async (req, res) => {
         order by modified_at desc, created_at desc
     )
      
-
     select 
       id, 
       --draft_id, 
@@ -428,6 +417,7 @@ router.post(
         and description = ''
         and title = 'Untitled'
         and modified_at is null
+        and is_published = false
         and is_deleted = false
       `,
         [req.body.userId]
@@ -519,9 +509,11 @@ router.put(
   "/update-form",
   async (req: UpdateDraftRequest, res: Response): Promise<void> => {
     try {
+      console.log(req.body);
+
       const result2 = await pool.query(
         `
-        update ${req.body.isForDraft ? "draft-forms" : "forms"}
+        update ${req.body.isForDraft ? "draft_forms" : "forms"}
         set 
           title = $1,
           description = $2,
@@ -536,7 +528,9 @@ router.put(
 
       if (!result2) throw new Error("There was an error updating the form draft");
 
-      if (!result2.rows[0]) throw new Error("New form draft was not updated");
+      console.log(result2.rows);
+
+      if (!result2.rows[0]) throw new Error("form draft was not updated");
 
       res.send(result2.rows[0]);
     } catch (error) {
@@ -585,10 +579,10 @@ router.post("/add-new-input-to-form", async (req, res) => {
       on a.input_type_id = b.id
     `,
       [
-        req.body.input.input_type_id,
-        req.body.form.id,
-        req.body.input.metadata_question,
-        req.body.input.metadata_description,
+        req.body.inputTypeId,
+        req.body.formId,
+        req.body.inputMetadataQuestion,
+        req.body.inputMetadataDescription,
         req.body.userId,
       ]
     );
@@ -599,8 +593,8 @@ router.post("/add-new-input-to-form", async (req, res) => {
 
     let numCustomProperties = 0;
 
-    if (req.body.input.properties) {
-      req.body.input.properties.forEach(async (property, i) => {
+    if (req.body.properties) {
+      req.body.properties.forEach(async (property, i) => {
         const result = await pool.query(
           `
           insert into ${
@@ -646,7 +640,7 @@ router.post("/add-new-input-to-form", async (req, res) => {
 
         if (property.value != null && property.value != "") numCustomProperties += 1;
 
-        if (i == req.body.input.properties.length - 1) {
+        if (i == req.body.properties.length - 1) {
           res.send({ ...result1.rows[0], num_custom_properties: numCustomProperties });
           return;
         }
