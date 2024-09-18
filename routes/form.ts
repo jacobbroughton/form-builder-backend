@@ -9,54 +9,68 @@ import { Request, Response } from "express";
 
 const router = express.Router();
 
-router.get("/get-all-forms/:userId", async (req, res) => {
+router.get("/get-all-forms/:userId/:sort", async (req, res) => {
   try {
+    // TODO - Impliment
     const result = await pool.query(
       `
       with public as (
       select * from forms
       where created_by_id = $1
       and is_deleted = false
-      order by modified_at, created_at desc
+      --order by modified_at, created_at desc
     ) ,
     draft as (
       select * from draft_forms
         where created_by_id = $1
         and is_published = false
         and is_deleted = false
-        order by modified_at desc, created_at desc
+        --order by modified_at desc, created_at desc
     )
      
-    select 
-      id, 
-      --draft_id, 
-      title, 
-      description, 
-      passkey, 
-      is_deleted, 
-      --published_by_id,
-      published_at relevant_dt, 
-      created_by_id, 
-      created_at, 
-      modified_by_id, 
-      modified_at,
-      false is_draft
-    from public 
-    union all 
-    select 
-      id, 
-      title, 
-      description, 
-      passkey, 
-      --is_published, 
-      is_deleted, 
-      created_at relevant_dt,
-      created_by_id,
-      created_at, 
-      modified_by_id, 
-      modified_at,
-      true is_draft
-    from draft
+    select * from (
+      select 
+        id, 
+        --draft_id, 
+        title, 
+        description, 
+        passkey, 
+        is_deleted, 
+        --published_by_id,
+        published_at relevant_dt, 
+        created_by_id, 
+        created_at, 
+        modified_by_id, 
+        modified_at,
+        false is_draft
+      from public 
+      union all 
+      select 
+        id, 
+        title, 
+        description, 
+        passkey, 
+        --is_published, 
+        is_deleted, 
+        created_at relevant_dt,
+        created_by_id,
+        created_at, 
+        modified_by_id, 
+        modified_at,
+        true is_draft
+        from draft
+    ) combined
+     order by ${
+       req.params.sort === "alphabetical-a-z"
+         ? "combined.title asc"
+         : req.params.sort === "alphabetical-z-a"
+         ? "combined.title desc"
+         : req.params.sort === "date-new-old"
+         ? "combined.created_at asc"
+         : req.params.sort === "date-old-new"
+         ? "combined.created_at desc"
+         : "combined.created_at asc"
+     }
     `,
       [req.params.userId]
     );

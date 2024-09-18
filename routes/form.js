@@ -59,13 +59,21 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var express = require("express");
 var database_js_1 = require("../config/database.js");
 var router = express.Router();
-router.get("/get-all-forms/:userId", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+router.get("/get-all-forms/:userId/:sort", function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
     var result, error_1;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
                 _a.trys.push([0, 2, , 3]);
-                return [4 /*yield*/, database_js_1.pool.query("\n      with public as (\n      select * from forms\n      where created_by_id = $1\n      and is_deleted = false\n      order by modified_at, created_at desc\n    ) ,\n    draft as (\n      select * from draft_forms\n        where created_by_id = $1\n        and is_published = false\n        and is_deleted = false\n        order by modified_at desc, created_at desc\n    )\n     \n    select \n      id, \n      --draft_id, \n      title, \n      description, \n      passkey, \n      is_deleted, \n      --published_by_id,\n      published_at relevant_dt, \n      created_by_id, \n      created_at, \n      modified_by_id, \n      modified_at,\n      false is_draft\n    from public \n    union all \n    select \n      id, \n      title, \n      description, \n      passkey, \n      --is_published, \n      is_deleted, \n      created_at relevant_dt,\n      created_by_id,\n      created_at, \n      modified_by_id, \n      modified_at,\n      true is_draft\n    from draft\n    ", [req.params.userId])];
+                return [4 /*yield*/, database_js_1.pool.query("\n      with public as (\n      select * from forms\n      where created_by_id = $1\n      and is_deleted = false\n      --order by modified_at, created_at desc\n    ) ,\n    draft as (\n      select * from draft_forms\n        where created_by_id = $1\n        and is_published = false\n        and is_deleted = false\n        --order by modified_at desc, created_at desc\n    )\n     \n    select * from (\n      select \n        id, \n        --draft_id, \n        title, \n        description, \n        passkey, \n        is_deleted, \n        --published_by_id,\n        published_at relevant_dt, \n        created_by_id, \n        created_at, \n        modified_by_id, \n        modified_at,\n        false is_draft\n      from public \n      union all \n      select \n        id, \n        title, \n        description, \n        passkey, \n        --is_published, \n        is_deleted, \n        created_at relevant_dt,\n        created_by_id,\n        created_at, \n        modified_by_id, \n        modified_at,\n        true is_draft\n        from draft\n    ) combined\n     order by ".concat(req.params.sort === "alphabetical-a-z"
+                        ? "combined.title asc"
+                        : req.params.sort === "alphabetical-z-a"
+                            ? "combined.title desc"
+                            : req.params.sort === "date-new-old"
+                                ? "combined.created_at asc"
+                                : req.params.sort === "date-old-new"
+                                    ? "combined.created_at desc"
+                                    : "combined.created_at asc", "\n    "), [req.params.userId])];
             case 1:
                 result = _a.sent();
                 if (!result)
