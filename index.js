@@ -1,12 +1,14 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-var express = require("express");
-var cors = require("cors");
 var cookieParser = require("cookie-parser");
-var session = require("express-session");
+var cors = require("cors");
 var dotenv = require("dotenv");
+var express = require("express");
+var session = require("express-session");
 var database_1 = require("./config/database");
 var form_1 = require("./routes/form");
+var sessions_1 = require("./routes/sessions");
+var user_1 = require("./routes/user");
 dotenv.config();
 var app = express();
 var origins = ["http://localhost:3000"];
@@ -30,6 +32,8 @@ app.use(session({
         sameSite: process.env.NODE_ENV === "production" ? "none" : false,
     },
 }));
-app.use('/form', form_1.default);
+app.use("/form", form_1.default);
+app.use("/api/sessions", sessions_1.default);
+app.use("/api/auth", user_1.default);
 var port = 3001;
 app.listen(port, function () { return console.log("Server listening at port 3001"); });

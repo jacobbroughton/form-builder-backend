@@ -1,11 +1,13 @@
-import * as express from "express";
-import * as cors from "cors";
 import * as cookieParser from "cookie-parser";
-import * as session from "express-session";
+import * as cors from "cors";
 import * as dotenv from "dotenv";
+import * as express from "express";
+import * as session from "express-session";
 import { sessionStore } from "./config/database";
 
-import FormRouter from "./routes/form"
+import FormRouter from "./routes/form";
+import SessionsRouter from "./routes/sessions";
+import UserRouter from "./routes/user";
 
 dotenv.config();
 
@@ -40,7 +42,9 @@ app.use(
   })
 );
 
-app.use('/form', FormRouter)
+app.use("/form", FormRouter);
+app.use("/api/sessions", SessionsRouter);
+app.use("/api/auth", UserRouter);
 
 const port = 3001;
 
