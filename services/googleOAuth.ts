@@ -1,5 +1,5 @@
-import * as qs from "qs";
-import { config } from "../config/config";
+import qs from "qs";
+import { config } from "../config/config.js";
 import axios from "axios";
 
 interface GoogleTokensResult {
@@ -25,16 +25,12 @@ export async function getGoogleOAuthTokens({
   };
 
   try {
-    console.log(values);
-
     const response = await axios.post(url, qs.stringify(values), {
       method: "post",
       headers: {
         "content-type": "application/x-www-form-urlencoded",
       },
     });
-
-    console.log(response.data);
 
     return response.data;
   } catch (error: any) {
@@ -75,6 +71,27 @@ export async function getGoogleUser({
 
     return response.data;
   } catch (error: any) {
+    throw new Error(error.message);
+  }
+}
+
+export async function getNewAccessToken({
+  refresh_token,
+}: {
+  refresh_token: string;
+}): Promise<GoogleUserResult> {
+  try {
+    // fetching new access token with the refresh token from existing session
+    const response = await axios.post(`https://oauth2.googleapis.com/token`, {
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      refresh_token,
+      grant_type: "refresh_token",
+    });
+
+    return response.data;
+  } catch (error: any) {
+    console.error("Error refreshing access token", error.response.data);
     throw new Error(error.message);
   }
 }

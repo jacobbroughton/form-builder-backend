@@ -1,7 +1,7 @@
-import * as pg from "pg";
-import * as expressSession from "express-session";
-import * as connectPgSimple from "connect-pg-simple";
-import * as dotEnv from "dotenv";
+import pg from "pg";
+import expressSession from "express-session";
+import connectPgSimple from "connect-pg-simple";
+import dotEnv from "dotenv";
 
 const { Pool } = pg;
 const pgSession = connectPgSimple(expressSession);
@@ -30,6 +30,5 @@ const sessionStore = new pgSession({
   tableName: "sessions",
   createTableIfMissing: true,
 });
-
 
 export { pool, sessionStore };

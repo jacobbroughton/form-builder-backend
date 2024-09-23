@@ -9,7 +9,7 @@
     "typescript": "^5.5.4"
   },
   "scripts": {
-    "dev": "npx tsc index.ts; node index.js",
+    "dev": "tsc; node dist/index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "killport": "lsof -t -i tcp:3001 | xargs kill"
   },
@@ -32,6 +32,7 @@
     "pg": "^8.12.0"
   },
   "author": "Jacob Broughton",
+  "type": "module",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/jacobbroughton/form-builder-backend/issues"
