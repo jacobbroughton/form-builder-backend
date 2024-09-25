@@ -40,13 +40,14 @@ export async function findAndUpdateUser(googleUser: GoogleUserResult) {
           now(),
           null
         )
+        returning *
         `,
         [googleUser.name, googleUser.email, googleUser.picture]
       );
 
       if (!result) throw new Error("There was an error inserting the user");
 
-      return result.rows;
+      return result.rows[0];
     }
 
     return result.rows[0];
@@ -129,18 +130,49 @@ export async function createSession({
 export async function clearSessionOnBackend({
   session_id,
 }: {
-  session_id: string;
+  session_id: string | null;
 }): Promise<void> {
+  try {
+    let result;
+
+    if (session_id) {
+      result = await pool.query(
+        `
+        update sessions
+        set is_active = false,
+        updated_at = now()
+        where session_id = $1
+        returning *
+      `,
+        [session_id]
+      );
+    } else {
+      result = await pool.query(
+        `
+        update sessions
+        set is_active = false,
+        updated_at = now()
+        where expires_at < now()
+      `
+      );
+    }
+
+    if (!result) throw new Error("Session was not cleared");
+  } catch (error) {
+    console.log(error);
+  }
+}
+
+export async function destorySessionsForUser(userId: string) {
   try {
     const result = await pool.query(
       `
       update sessions
       set is_active = false,
       updated_at = now()
-      where session_id = $1
-      returning *
+      where user_id = $1
     `,
-      [session_id]
+      [userId]
     );
 
     if (!result) throw new Error("Session was not cleared");
@@ -203,4 +235,24 @@ export async function getSessionById(sessionId: string) {
   }
 
   return null;
+}
+
+export async function extendSession(session_id: string, expiresInMs: number) {
+  try {
+    const result = await pool.query(
+      `
+      update sessions
+      set expires_at = ${`now() + (${expiresInMs} * interval '1 ms')`}
+      where session_id = $1
+      returning *
+    `,
+      [session_id]
+    );
+
+    if (!result) throw new Error("There was an error looking for existing valid session");
+
+    return result.rows[0];
+  } catch (error) {
+    console.error(error);
+  }
 }

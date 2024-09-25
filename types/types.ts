@@ -27,9 +27,6 @@ export type HashmapType = {
   [key: string]: object[];
 };
 
-export type GenericQuery = {
-  userId: string;
-};
 
 declare module "jsonwebtoken" {
   export interface UserSessionCookiePayload extends jwt.JwtPayload {

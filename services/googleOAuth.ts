@@ -79,12 +79,18 @@ export async function getNewAccessToken({
   refresh_token,
 }: {
   refresh_token: string;
-}): Promise<GoogleUserResult> {
+}): Promise<{
+  access_token: string | null;
+  expires_in: number | null;
+  scope: string | null;
+  token_type: string | null;
+  id_token: string | null;
+}> {
   try {
     // fetching new access token with the refresh token from existing session
     const response = await axios.post(`https://oauth2.googleapis.com/token`, {
-      client_id: process.env.GOOGLE_CLIENT_ID,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      client_id: config.googleClientId,
+      client_secret: config.googleClientSecret,
       refresh_token,
       grant_type: "refresh_token",
     });
@@ -95,3 +101,7 @@ export async function getNewAccessToken({
     throw new Error(error.message);
   }
 }
+
+// eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImlkIjoiMWRhMmM2MDgtNzc1OS0xMWVmLThkY2ItYTI5YzkxZTI5MmMyIiwidXNlcm5hbWUiOm51bGwsIm5hbWUiOiJKYWNvYiBCcm91Z2h0b24iLCJlbWFpbCI6ImphY29iYnJvdWdodG9uZGV2QGdtYWlsLmNvbSIsInBpY3R1cmUiOiJodHRwczovL2xoMy5nb29nbGV1c2VyY29udGVudC5jb20vYS9BQ2c4b2NJZFNpZUppWmxVNWFoY3d3ZWlkWThLbFZscEdyT00wRUZISmxUMTN2bFBqUXBLckNFPXM5Ni1jIiwiY3JlYXRlZF9hdCI6IjIwMjQtMDktMjBUMTQ6MDM6MzAuNDY2WiIsIm1vZGlmaWVkX2F0IjpudWxsfSwic2Vzc2lvbiI6eyJzZXNzaW9uX2lkIjoiMmMyYWNmZTQtN2IzZC0xMWVmLWE2NjYtYTI5YzkxZTI5MmMzIiwidXNlcl9pZCI6IjFkYTJjNjA4LTc3NTktMTFlZi04ZGNiLWEyOWM5MWUyOTJjMiIsImV4cGlyZXNfYXQiOiIyMDI0LTA5LTI1VDEzOjUzOjMyLjU5NFoiLCJpc19hY3RpdmUiOnRydWV9LCJpYXQiOjE3MjcyNjg4MTMsImV4cCI6MTcyNzM1NTIxM30.jg1UWX_5iVK4Aq8xDv6-4o8qAIF3q9IBge-OCsgpAAs
+
+// eyJhbGciOiJSUzI1NiIsImtpZCI6IjVhYWZmNDdjMjFkMDZlMjY2Y2NlMzk1YjIxNDVjN2M2ZDQ3MzBlYTUiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiI2NjU0Mjc4MzY0NTQtMzM1MGo0ZWM0bmI2amhvYWw3djQ2YnNrZ2EybnBwN2YuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiI2NjU0Mjc4MzY0NTQtMzM1MGo0ZWM0bmI2amhvYWw3djQ2YnNrZ2EybnBwN2YuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJzdWIiOiIxMDQxOTQxNjU0ODUyNzIxNjUxMzgiLCJlbWFpbCI6ImphY29iYnJvdWdodG9uZGV2QGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJhdF9oYXNoIjoiWjMyWFltNzZlVkR4Ni1BVEh4bXhMdyIsIm5hbWUiOiJKYWNvYiBCcm91Z2h0b24iLCJwaWN0dXJlIjoiaHR0cHM6Ly9saDMuZ29vZ2xldXNlcmNvbnRlbnQuY29tL2EvQUNnOG9jSWRTaWVKaVpsVTVhaGN3d2VpZFk4S2xWbHBHck9NMEVGSEpsVDEzdmxQalFwS3JDRT1zOTYtYyIsImdpdmVuX25hbWUiOiJKYWNvYiIsImZhbWlseV9uYW1lIjoiQnJvdWdodG9uIiwiaWF0IjoxNzI3MjY4ODEzLCJleHAiOjE3MjcyNzI0MTN9.fr8K-qmDJh_wdXbpnDQbsRzAq5IGU0nO6PgglyMN9Kadkcp4IwvyseSTR7EECA6btYla7n0XzCDz30MUz4Cq4dFu3IqNCjYcWqr8z3tOof-_jP5hils221-URb934GX0q2SpsiJ10C3APUrfKiIpiKO9KhZGNhDUElw53Kk2zCsIS8avmvjswXViFfbeZgyik_1Xg_CE8Gh9_KoOkmDjLFf51lAT8LanTCCboWXMwW7YsPuC5S6XQEsMsKNHarAuFXbCGgSzYlfRlYf85WJGSoHpXYLMIWaRN44bQKnyGcTerDeocn6nh9YsKtoauHaHIfecqREjtjjI_Ezgk2Rszg

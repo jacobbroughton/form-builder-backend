@@ -14,15 +14,16 @@ import {
   getPublishedForm,
   publishForm,
   storeInitialDraft,
-  updateForm,
+  updateDraftForm,
+  updatePublishedForm,
 } from "../controllers/formController.js";
 import { validateSession } from "../middleware/validateSession.js";
 
 const router = express.Router();
 
-router.get("/get-all-forms/:userId/:sort", validateSession, getAllForms);
+router.get("/get-all-forms/:sort", validateSession, getAllForms);
 
-router.get("/get-draft-forms/:userId", validateSession, getDraftForms);
+router.get("/get-draft-forms", validateSession, getDraftForms);
 
 router.get("/get-published-form/:formId", getPublishedForm);
 
@@ -32,17 +33,27 @@ router.get("/get-default-input-types", validateSession, getDefaultInputTypes);
 
 router.get("/get-default-input-properties", validateSession, getDefaultInputProperties);
 
-router.get("/get-default-input-property-options", validateSession, getDefaultInputPropertyOptions);
+router.get(
+  "/get-default-input-property-options",
+  validateSession,
+  getDefaultInputPropertyOptions
+);
 
 router.get("/check-for-existing-draft", validateSession, checkForExistingDraft);
 
 router.post("/store-initial-draft", validateSession, storeInitialDraft);
 
-router.put("/update-form", validateSession, updateForm);
+router.put("/update-draft-form", validateSession, updateDraftForm);
+
+router.put("/update-published-form", validateSession, updatePublishedForm);
 
 router.post("/add-new-input-to-form", validateSession, addNewInputToForm);
 
-router.put("/change-input-enabled-status/:inputId", validateSession, changeInputEnabledStatus);
+router.put(
+  "/change-input-enabled-status/:inputId",
+  validateSession,
+  changeInputEnabledStatus
+);
 
 router.post("/publish", validateSession, publishForm);
 
