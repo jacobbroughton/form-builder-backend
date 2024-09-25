@@ -27,7 +27,7 @@ router.get("/get-draft-forms", validateSession, getDraftForms);
 
 router.get("/get-published-form/:formId", getPublishedForm);
 
-router.get("/get-draft-form/:formId", getDraftForm);
+router.get("/get-draft-form/:formId", validateSession, getDraftForm);
 
 router.get("/get-default-input-types", validateSession, getDefaultInputTypes);
 
