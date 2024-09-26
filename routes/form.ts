@@ -11,8 +11,10 @@ import {
   getDefaultInputTypes,
   getDraftForm,
   getDraftForms,
+  getExistingEmptyDraft,
   getPublishedForm,
   publishForm,
+  renewExistingEmptyDraft,
   storeInitialDraft,
   updateDraftForm,
   updatePublishedForm,
@@ -42,6 +44,10 @@ router.get(
 router.get("/check-for-existing-draft", validateSession, checkForExistingDraft);
 
 router.post("/store-initial-draft", validateSession, storeInitialDraft);
+
+router.get("/get-existing-empty-draft", validateSession, getExistingEmptyDraft);
+
+router.post("/renew-existing-empty-draft", validateSession, renewExistingEmptyDraft);
 
 router.put("/update-draft-form", validateSession, updateDraftForm);
 

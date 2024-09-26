@@ -465,10 +465,7 @@ export const checkForExistingDraft = async (
   }
 };
 
-export const storeInitialDraft = async (
-  req: Request,
-  res: Response
-): Promise<object | void> => {
+export const getExistingEmptyDraft = async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
       `
@@ -479,13 +476,65 @@ export const storeInitialDraft = async (
       and modified_at is null
       and is_published = false
       and is_deleted = false
+      order by created_at desc
+      limit 1
     `,
       [req.user.id]
     );
 
-    if (!result.rows[0]) {
-      const result2 = await pool.query(
-        `
+    console.log(result.rows)
+
+    if (!result) throw new Error("There was an error getting an existing empty draft");
+
+    res.send(result.rows)
+  } catch (error) {
+    let message = "";
+
+    if (error instanceof Error) {
+      message = error.message;
+    } else {
+      message = String(error);
+    }
+
+    return res.status(500).json({ message });
+  }
+};
+
+export const renewExistingEmptyDraft = async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query(
+      `
+      update draft_forms
+      set created_at = now()
+      where id = $1
+      returning *
+    `,
+      [req.body.draftFormId]
+    );
+
+    if (!result) throw new Error("There was an error renewing the existing draft");
+
+    res.send(result.rows[0]);
+  } catch (error) {
+    let message = "";
+
+    if (error instanceof Error) {
+      message = error.message;
+    } else {
+      message = String(error);
+    }
+
+    return res.status(500).json({ message });
+  }
+};
+
+export const storeInitialDraft = async (
+  req: Request,
+  res: Response
+): Promise<object | void> => {
+  try {
+    const result = await pool.query(
+      `
         insert into draft_forms (
           title,
           description,
@@ -507,27 +556,14 @@ export const storeInitialDraft = async (
         )
         returning *
       `,
-        [req.user.id]
-      );
+      [req.user.id]
+    );
 
-      if (!result2) throw new Error("There was an error adding an initial form draft");
+    if (!result) throw new Error("There was an error adding an initial form draft");
 
-      result2.rows[0];
+    result.rows[0];
 
-      res.send(result2.rows[0]);
-    } else {
-      const result2 = await pool.query(
-        `
-        update draft_forms
-        set created_at = now()
-        where id = $1
-        returning *
-      `,
-        [result.rows[0].id]
-      );
-
-      res.send(result2.rows[0]);
-    }
+    res.send(result.rows[0]);
   } catch (error) {
     let message = "";
 
