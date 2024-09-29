@@ -554,6 +554,7 @@ interface UpdateDraftBody {
     }[];
   }[];
   privacyId: number;
+  privacyPasskey: string;
 }
 
 interface UpdateDraftRequest extends Request {
@@ -581,7 +582,7 @@ export const updateDraftForm = async (
       [
         req.body.title,
         req.body.description,
-        null,
+        req.body.privacyPasskey,
         req.user.id,
         req.body.privacyId,
         req.body.formId,
@@ -612,12 +613,20 @@ export const updatePublishedForm = async (
         title = $1,
         description = $2,
         passkey = $3,
-        modified_by_id = $4,
+        privacy_id = $4,
+        modified_by_id = $5,
         modified_at = now()
-      where id = $5
+      where id = $6
       returning *
     `,
-      [req.body.title, req.body.description, null, req.user.id, req.body.formId]
+      [
+        req.body.title,
+        req.body.description,
+        req.body.privacyPasskey,
+        req.body.privacyId,
+        req.user.id,
+        req.body.formId,
+      ]
     );
 
     if (!result2) throw new Error("There was an error updating the published");
@@ -890,6 +899,7 @@ export const publishForm = async (req: Request, res: Response) => {
           title,
           description,
           passkey,
+          privacy_id,
           is_deleted,
           published_by_id,
           published_at,
@@ -903,6 +913,7 @@ export const publishForm = async (req: Request, res: Response) => {
           a.title,
           a.description,
           a.passkey,
+          a.privacy_id,
           false,
           $2,
           now(),
