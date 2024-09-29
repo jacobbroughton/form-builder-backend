@@ -1,6 +1,7 @@
 import express from "express";
 import {
-  addNewInputToForm,
+  addNewInputToDraftForm,
+  addNewInputToPublishedForm,
   changeInputEnabledStatus,
   checkForExistingDraft,
   deleteDraftForm,
@@ -12,6 +13,7 @@ import {
   getDraftForm,
   getDraftForms,
   getExistingEmptyDraft,
+  getPrivacyOptions,
   getPublishedForm,
   publishForm,
   renewExistingEmptyDraft,
@@ -30,6 +32,8 @@ router.get("/get-draft-forms", validateSession, getDraftForms);
 router.get("/get-published-form/:formId", getPublishedForm);
 
 router.get("/get-draft-form/:formId", validateSession, getDraftForm);
+
+router.get("/get-privacy-options", validateSession, getPrivacyOptions);
 
 router.get("/get-default-input-types", validateSession, getDefaultInputTypes);
 
@@ -53,7 +57,12 @@ router.put("/update-draft-form", validateSession, updateDraftForm);
 
 router.put("/update-published-form", validateSession, updatePublishedForm);
 
-router.post("/add-new-input-to-form", validateSession, addNewInputToForm);
+router.post("/add-new-input-to-draft-form", validateSession, addNewInputToDraftForm);
+router.post(
+  "/add-new-input-to-published-form",
+  validateSession,
+  addNewInputToPublishedForm
+);
 
 router.put(
   "/change-input-enabled-status/:inputId",

@@ -6,6 +6,7 @@ import {
   InputTypePropertyOptionType,
 } from "../types/types.js";
 import { hashify } from "../utils/hashify.js";
+import { parseErrorMessage } from "../utils/parseErrorMessage.js";
 
 export const getAllForms = async (req: Request, res: Response) => {
   try {
@@ -77,13 +78,7 @@ export const getAllForms = async (req: Request, res: Response) => {
 
     res.send(result.rows);
   } catch (error) {
-    let message = "";
-
-    if (error instanceof Error) {
-      message = error.message;
-    } else {
-      message = String(error);
-    }
+    let message = parseErrorMessage(error);
 
     return res.status(500).json({ message });
   }
@@ -106,13 +101,7 @@ export const getDraftForms = async (req: Request, res: Response) => {
 
     res.send(result.rows);
   } catch (error) {
-    let message = "";
-
-    if (error instanceof Error) {
-      message = error.message;
-    } else {
-      message = String(error);
-    }
+    let message = parseErrorMessage(error);
 
     return res.status(500).json({ message });
   }
@@ -191,13 +180,7 @@ export const getPublishedForm = async (req: Request, res: Response) => {
       propertiesObj,
     });
   } catch (error) {
-    let message = "";
-
-    if (error instanceof Error) {
-      message = error.message;
-    } else {
-      message = String(error);
-    }
+    let message = parseErrorMessage(error);
 
     return res.status(500).json({ message });
   }
@@ -278,13 +261,7 @@ export const getDraftForm = async (req: Request, res: Response) => {
       propertiesObj,
     });
   } catch (error) {
-    let message = "";
-
-    if (error instanceof Error) {
-      message = error.message;
-    } else {
-      message = String(error);
-    }
+    let message = parseErrorMessage(error);
 
     return res.status(500).json({ message });
   }
@@ -302,13 +279,25 @@ export const getDefaultInputTypes = async (
     if (!result) throw new Error("There was an error fetching form item data types");
     res.send(result.rows);
   } catch (error) {
-    let message = "";
+    let message = parseErrorMessage(error);
 
-    if (error instanceof Error) {
-      message = error.message;
-    } else {
-      message = String(error);
-    }
+    return res.status(500).json({ message });
+  }
+};
+
+export const getPrivacyOptions = async (
+  req: Request,
+  res: Response
+): Promise<object | void> => {
+  try {
+    const result = await pool.query(`
+      select * from privacy_options  
+    `);
+
+    if (!result) throw new Error("There was an error fetching privacy options");
+    res.send(result.rows);
+  } catch (error) {
+    let message = parseErrorMessage(error);
 
     return res.status(500).json({ message });
   }
@@ -336,13 +325,7 @@ export const getDefaultInputProperties = async (
 
     res.send(data);
   } catch (error) {
-    let message = "";
-
-    if (error instanceof Error) {
-      message = error.message;
-    } else {
-      message = String(error);
-    }
+    let message = parseErrorMessage(error);
 
     return res.status(500).json({ message });
   }
@@ -371,13 +354,7 @@ export const getDefaultInputPropertyOptions = async (
 
     res.send(data);
   } catch (error) {
-    let message = "";
-
-    if (error instanceof Error) {
-      message = error.message;
-    } else {
-      message = String(error);
-    }
+    let message = parseErrorMessage(error);
 
     return res.status(500).json({ message });
   }
@@ -453,13 +430,7 @@ export const checkForExistingDraft = async (
 
     res.send(draft);
   } catch (error) {
-    let message = "";
-
-    if (error instanceof Error) {
-      message = error.message;
-    } else {
-      message = String(error);
-    }
+    let message = parseErrorMessage(error);
 
     return res.status(500).json({ message });
   }
@@ -482,19 +453,13 @@ export const getExistingEmptyDraft = async (req: Request, res: Response) => {
       [req.user.id]
     );
 
-    console.log(result.rows)
+    console.log(result.rows);
 
     if (!result) throw new Error("There was an error getting an existing empty draft");
 
-    res.send(result.rows)
+    res.send(result.rows);
   } catch (error) {
-    let message = "";
-
-    if (error instanceof Error) {
-      message = error.message;
-    } else {
-      message = String(error);
-    }
+    let message = parseErrorMessage(error);
 
     return res.status(500).json({ message });
   }
@@ -516,13 +481,7 @@ export const renewExistingEmptyDraft = async (req: Request, res: Response) => {
 
     res.send(result.rows[0]);
   } catch (error) {
-    let message = "";
-
-    if (error instanceof Error) {
-      message = error.message;
-    } else {
-      message = String(error);
-    }
+    let message = parseErrorMessage(error);
 
     return res.status(500).json({ message });
   }
@@ -565,13 +524,7 @@ export const storeInitialDraft = async (
 
     res.send(result.rows[0]);
   } catch (error) {
-    let message = "";
-
-    if (error instanceof Error) {
-      message = error.message;
-    } else {
-      message = String(error);
-    }
+    let message = parseErrorMessage(error);
 
     return res.status(500).json({ message });
   }
@@ -600,7 +553,7 @@ interface UpdateDraftBody {
       value: string;
     }[];
   }[];
-  isForDraft: boolean;
+  privacyId: number;
 }
 
 interface UpdateDraftRequest extends Request {
@@ -620,11 +573,19 @@ export const updateDraftForm = async (
         description = $2,
         passkey = $3,
         modified_by_id = $4,
+        privacy_id = $5,
         modified_at = now()
-      where id = $5
+      where id = $6
       returning *
     `,
-      [req.body.title, req.body.description, null, req.user.id, req.body.formId]
+      [
+        req.body.title,
+        req.body.description,
+        null,
+        req.user.id,
+        req.body.privacyId,
+        req.body.formId,
+      ]
     );
 
     if (!result2) throw new Error("There was an error updating the form draft");
@@ -633,13 +594,7 @@ export const updateDraftForm = async (
 
     res.send(result2.rows[0]);
   } catch (error) {
-    let message = "";
-
-    if (error instanceof Error) {
-      message = error.message;
-    } else {
-      message = String(error);
-    }
+    let message = parseErrorMessage(error);
 
     return res.status(500).json({ message });
   }
@@ -671,19 +626,13 @@ export const updatePublishedForm = async (
 
     res.send(result2.rows[0]);
   } catch (error) {
-    let message = "";
-
-    if (error instanceof Error) {
-      message = error.message;
-    } else {
-      message = String(error);
-    }
+    let message = parseErrorMessage(error);
 
     return res.status(500).json({ message });
   }
 };
 
-export const addNewInputToForm = async (
+export const addNewInputToDraftForm = async (
   req: Request,
   res: Response
 ): Promise<object | void> => {
@@ -691,16 +640,13 @@ export const addNewInputToForm = async (
     const result1 = await pool.query(
       `
       with inserted as (
-        insert into ${
-          req.body.isForDraft ? "draft_user_created_inputs" : "user_created_inputs"
-        } (
+        insert into draft_user_created_inputs
+         (
           input_type_id,
-          ${req.body.isForDraft ? "draft_form_id" : "form_id"},
+          draft_form_id,
           metadata_question,
           metadata_description,
           is_active,
-          ${req.body.isForDraft ? "" : "published_at,"}
-          ${req.body.isForDraft ? "" : "published_by_id,"}
           created_at,
           created_by_id,
           modified_by_id,
@@ -711,8 +657,6 @@ export const addNewInputToForm = async (
           $3,
           $4,
           true,
-          ${req.body.isForDraft ? "" : "now(),"}
-          ${req.body.isForDraft ? "" : "$5,"}
           now(),
           $5,
           null,
@@ -744,17 +688,12 @@ export const addNewInputToForm = async (
       req.body.properties.forEach(async (property, i: number) => {
         const result = await pool.query(
           `
-          insert into ${
-            req.body.isForDraft
-              ? "draft_user_created_input_property_values"
-              : "user_created_input_property_values"
-          } (
+          insert into draft_user_created_input_property_values
+          (
             created_input_id, 
             property_id, 
             input_type_id, 
             value,
-            ${req.body.isForDraft ? "" : "published_at,"}
-            ${req.body.isForDraft ? "" : "published_by_id,"}
             created_at,
             created_by_id, 
             modified_by_id, 
@@ -764,8 +703,6 @@ export const addNewInputToForm = async (
             $2,
             $3,
             $4,
-            ${req.body.isForDraft ? "" : "now(),"}
-            ${req.body.isForDraft ? "" : "$5,"}
             now(),
             $5,
             null,
@@ -794,13 +731,120 @@ export const addNewInputToForm = async (
       res.send({ ...result1.rows[0], num_custom_properties: 0 });
     }
   } catch (error) {
-    let message = "";
+    let message = parseErrorMessage(error);
 
-    if (error instanceof Error) {
-      message = error.message;
+    return res.status(500).json({ message });
+  }
+};
+
+export const addNewInputToPublishedForm = async (
+  req: Request,
+  res: Response
+): Promise<object | void> => {
+  try {
+    const result1 = await pool.query(
+      `
+      with inserted as (
+        insert into user_created_inputs
+        } (
+          input_type_id,
+          form_id,
+          metadata_question,
+          metadata_description,
+          is_active,
+          published_at,
+          published_by_id,
+          created_at,
+          created_by_id,
+          modified_by_id,
+          modified_at
+        ) values (
+          $1,
+          $2,
+          $3,
+          $4,
+          true,
+          now(),
+          $5,
+          now(),
+          $5,
+          null,
+          null
+        ) returning * 
+      )
+      select a.*,
+      b.name input_type_name
+      from inserted a
+      join input_types b
+      on a.input_type_id = b.id
+    `,
+      [
+        req.body.inputTypeId,
+        req.body.formId,
+        req.body.inputMetadataQuestion,
+        req.body.inputMetadataDescription,
+        req.user.id,
+      ]
+    );
+
+    if (!result1) throw new Error("There was an error adding a user created input");
+
+    const createdInput = result1.rows[0];
+
+    let numCustomProperties = 0;
+
+    if (req.body.properties) {
+      req.body.properties.forEach(async (property, i: number) => {
+        const result = await pool.query(
+          `
+          insert into user_created_input_property_values
+          } (
+            created_input_id, 
+            property_id, 
+            input_type_id, 
+            value,
+            published_at,
+            published_by_id,
+            created_at,
+            created_by_id, 
+            modified_by_id, 
+            modified_at
+          ) values (
+            $1,
+            $2,
+            $3,
+            $4,
+            now(),
+            $5,
+            now(),
+            $5,
+            null,
+            null
+          ) 
+        `,
+          [
+            createdInput.id,
+            property.id,
+            createdInput.input_type_id,
+            property.value,
+            req.user.id,
+          ]
+        );
+
+        if (!result) throw new Error("There was an error adding this property value");
+
+        if (property.value != null && property.value != "") numCustomProperties += 1;
+
+        if (i == req.body.properties.length - 1) {
+          res.send({ ...result1.rows[0], num_custom_properties: numCustomProperties });
+          return;
+        }
+      });
     } else {
-      message = String(error);
+      res.send({ ...result1.rows[0], num_custom_properties: 0 });
     }
+  } catch (error) {
+    let message = parseErrorMessage(error);
 
     return res.status(500).json({ message });
   }
@@ -822,13 +866,7 @@ export const changeInputEnabledStatus = async (req: Request, res: Response) => {
 
     res.send(result.rows[0]);
   } catch (error) {
-    let message = "";
-
-    if (error instanceof Error) {
-      message = error.message;
-    } else {
-      message = String(error);
-    }
+    let message = parseErrorMessage(error);
 
     return res.status(500).json({ message });
   }
@@ -992,13 +1030,7 @@ export const publishForm = async (req: Request, res: Response) => {
       res.send(result.rows);
     }
   } catch (error) {
-    let message = "";
-
-    if (error instanceof Error) {
-      message = error.message;
-    } else {
-      message = String(error);
-    }
+    let message = parseErrorMessage(error);
 
     return res.status(500).json({ message });
   }
@@ -1022,13 +1054,7 @@ export const deleteDraftForm = async (req: Request, res: Response) => {
 
     res.send(result.rows);
   } catch (error) {
-    let message = "";
-
-    if (error instanceof Error) {
-      message = error.message;
-    } else {
-      message = String(error);
-    }
+    let message = parseErrorMessage(error);
 
     return res.status(500).json({ message });
   }
@@ -1052,13 +1078,7 @@ export const deletePublishedForm = async (req: Request, res: Response) => {
 
     res.send(result.rows);
   } catch (error) {
-    let message = "";
-
-    if (error instanceof Error) {
-      message = error.message;
-    } else {
-      message = String(error);
-    }
+    let message = parseErrorMessage(error);
 
     return res.status(500).json({ message });
   }
