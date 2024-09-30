@@ -65,10 +65,10 @@ export const getAllForms = async (req: Request, res: Response) => {
          : req.params.sort === "alphabetical-z-a"
          ? "combined.title desc"
          : req.params.sort === "date-new-old"
-         ? "combined.created_at asc"
+         ? "combined.modified_at desc, combined.created_at desc"
          : req.params.sort === "date-old-new"
-         ? "combined.created_at desc"
-         : "combined.created_at asc"
+         ? "combined.modified_at asc, combined.created_at asc"
+         : "combined.modified_at asc, combined.created_at asc"
      }
     `,
       [req.user.id]
@@ -755,7 +755,7 @@ export const addNewInputToPublishedForm = async (
       `
       with inserted as (
         insert into user_created_inputs
-        } (
+        (
           input_type_id,
           form_id,
           metadata_question,
@@ -807,7 +807,7 @@ export const addNewInputToPublishedForm = async (
         const result = await pool.query(
           `
           insert into user_created_input_property_values
-          } (
+          (
             created_input_id, 
             property_id, 
             input_type_id, 
