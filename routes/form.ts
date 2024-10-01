@@ -20,8 +20,11 @@ import {
   storeInitialDraft,
   updateDraftForm,
   updatePublishedForm,
+  submitForm,
+  getPrevFormSubmissions,
 } from "../controllers/formController.js";
 import { validateSession } from "../middleware/validateSession.js";
+import { validateOptionalSession } from "../middleware/validateOptionalSession.js";
 
 const router = express.Router();
 
@@ -29,7 +32,7 @@ router.get("/get-all-forms/:sort", validateSession, getAllForms);
 
 router.get("/get-draft-forms", validateSession, getDraftForms);
 
-router.get("/get-published-form/:formId", getPublishedForm);
+router.get("/get-published-form/:formId", validateOptionalSession, getPublishedForm);
 
 router.get("/get-draft-form/:formId", validateSession, getDraftForm);
 
@@ -47,30 +50,35 @@ router.get(
 
 router.get("/check-for-existing-draft", validateSession, checkForExistingDraft);
 
-router.post("/store-initial-draft", validateSession, storeInitialDraft);
-
 router.get("/get-existing-empty-draft", validateSession, getExistingEmptyDraft);
+
+router.get("/get-prev-form-submissions/:formId", validateSession, getPrevFormSubmissions);
+
+router.post("/store-initial-draft", validateSession, storeInitialDraft);
 
 router.post("/renew-existing-empty-draft", validateSession, renewExistingEmptyDraft);
 
-router.put("/update-draft-form", validateSession, updateDraftForm);
-
-router.put("/update-published-form", validateSession, updatePublishedForm);
-
 router.post("/add-new-input-to-draft-form", validateSession, addNewInputToDraftForm);
+
 router.post(
   "/add-new-input-to-published-form",
   validateSession,
   addNewInputToPublishedForm
 );
 
+router.post("/publish", validateSession, publishForm);
+
+router.post("/submit-form", validateSession, submitForm);
+
+router.put("/update-draft-form", validateSession, updateDraftForm);
+
+router.put("/update-published-form", validateSession, updatePublishedForm);
+
 router.put(
   "/change-input-enabled-status/:inputId",
   validateSession,
   changeInputEnabledStatus
 );
-
-router.post("/publish", validateSession, publishForm);
 
 router.put(`/delete-draft-form/:formId`, validateSession, deleteDraftForm);
 

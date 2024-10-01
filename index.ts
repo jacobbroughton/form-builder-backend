@@ -41,7 +41,7 @@ app.use(
   })
 );
 
-app.use("/form", FormRouter);
+app.use("/api/form", FormRouter);
 app.use("/api/sessions", AuthRouter);
 
 const port = 3001;

@@ -127,15 +127,25 @@ export const getPublishedForm = async (req: Request, res: Response) => {
       `
       select a.*, 
       b.name input_type_name,
-      b.description input_type_description
-      from user_created_inputs a
+      b.description input_type_description,
+      c.value existing_answer
+      from author_inputs a
       inner join input_types b
       on a.input_type_id = b.id
+      left join submitted_input_values c
+      on a.id = c.created_input_id
       where form_id = $1
       and is_deleted = false
       and is_active = true
+      and c.submission_id = (
+        select id from form_submissions 
+        where a.form_id = $1 
+        and a.created_by_id = $2
+        order by created_at desc
+        limit 1
+      )
     `,
-      [form.id]
+      [form.id, req.user.id]
     );
 
     if (!result2)
@@ -146,10 +156,10 @@ export const getPublishedForm = async (req: Request, res: Response) => {
     const result3 = await pool.query(
       `
       select a.*, 
-      b.* from user_created_input_property_values a
+      b.* from author_input_property_values a
       inner join input_properties b
       on a.property_id = b.id
-      inner join user_created_inputs c 
+      inner join author_inputs c 
       on a.created_input_id = c.id
       where c.form_id = $1
     `,
@@ -210,7 +220,7 @@ export const getDraftForm = async (req: Request, res: Response) => {
       select a.*, 
       b.name input_type_name,
       b.description input_type_description
-      from draft_user_created_inputs a
+      from draft_author_inputs a
       inner join input_types b
       on a.input_type_id = b.id
       where draft_form_id = $1
@@ -227,10 +237,10 @@ export const getDraftForm = async (req: Request, res: Response) => {
     const result3 = await pool.query(
       `
       select a.*, 
-      b.* from draft_user_created_input_property_values a
+      b.* from draft_author_input_property_values a
       inner join input_properties b
       on a.property_id = b.id
-      inner join draft_user_created_inputs c 
+      inner join draft_author_inputs c 
       on a.created_input_id = c.id
       where c.draft_form_id = $1
     `,
@@ -410,11 +420,11 @@ export const checkForExistingDraft = async (
       b.name input_type_name, 
       b.description input_type_description,
       (
-        select cast(count(*) as integer) from draft_user_created_input_property_values
+        select cast(count(*) as integer) from draft_author_input_property_values
         where created_input_id = a.id\
         and value is not null and value != ''
       ) num_custom_properties
-      from draft_user_created_inputs a
+      from draft_author_inputs a
       inner join input_types b
       on a.input_type_id = b.id
       where a.draft_form_id = $1
@@ -465,6 +475,33 @@ export const getExistingEmptyDraft = async (req: Request, res: Response) => {
   }
 };
 
+export const getPrevFormSubmissions = async (req: Request, res: Response) => {
+  try {
+    const { formId } = req.params;
+
+    if (!formId) throw new Error("Form ID not provided");
+
+    const result = await pool.query(
+      `
+      select * from form_submissions
+      where form_id = $1
+      and created_by_id = $2
+      order by created_at desc
+    `,
+      [formId, req.user.id]
+    );
+
+    if (!result)
+      throw new Error("There was an error searching for previous form submission");
+
+    res.send(result.rows);
+  } catch (error) {
+    let message = parseErrorMessage(error);
+
+    return res.status(500).json({ message });
+  }
+};
+
 export const renewExistingEmptyDraft = async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
@@ -506,7 +543,7 @@ export const storeInitialDraft = async (
         ) values (
           'Untitled',
           '',
-          null,
+          '',
           false,
           $1,
           now(),
@@ -649,7 +686,7 @@ export const addNewInputToDraftForm = async (
     const result1 = await pool.query(
       `
       with inserted as (
-        insert into draft_user_created_inputs
+        insert into draft_author_inputs
          (
           input_type_id,
           draft_form_id,
@@ -697,7 +734,7 @@ export const addNewInputToDraftForm = async (
       req.body.properties.forEach(async (property, i: number) => {
         const result = await pool.query(
           `
-          insert into draft_user_created_input_property_values
+          insert into draft_author_input_property_values
           (
             created_input_id, 
             property_id, 
@@ -754,7 +791,7 @@ export const addNewInputToPublishedForm = async (
     const result1 = await pool.query(
       `
       with inserted as (
-        insert into user_created_inputs
+        insert into author_inputs
         (
           input_type_id,
           form_id,
@@ -806,7 +843,7 @@ export const addNewInputToPublishedForm = async (
       req.body.properties.forEach(async (property, i: number) => {
         const result = await pool.query(
           `
-          insert into user_created_input_property_values
+          insert into author_input_property_values
           (
             created_input_id, 
             property_id, 
@@ -863,7 +900,7 @@ export const changeInputEnabledStatus = async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
       `
-      update ${req.body.isDraft ? "draft_user_created_inputs" : "user_created_inputs"} 
+      update ${req.body.isDraft ? "draft_author_inputs" : "author_inputs"} 
       set is_active = $1
       where id = $2
       returning *
@@ -946,7 +983,7 @@ export const publishForm = async (req: Request, res: Response) => {
 
       const result3 = await pool.query(
         `
-        insert into user_created_inputs (
+        insert into author_inputs (
           input_type_id,
           form_id,
           metadata_question ,
@@ -973,7 +1010,7 @@ export const publishForm = async (req: Request, res: Response) => {
           a.created_by_id,
           a.modified_by_id,
           a.modified_at
-        from draft_user_created_inputs a
+        from draft_author_inputs a
         where a.draft_form_id = $3
         returning *
       `,
@@ -990,7 +1027,7 @@ export const publishForm = async (req: Request, res: Response) => {
       result3.rows.forEach(async (input, i) => {
         const result4 = await pool.query(
           `
-          insert into user_created_input_property_values (
+          insert into author_input_property_values (
             created_input_id,
             property_id,
             input_type_id,
@@ -1013,8 +1050,8 @@ export const publishForm = async (req: Request, res: Response) => {
             a.created_by_id,
             null,
             null
-          from draft_user_created_input_property_values a
-          inner join draft_user_created_inputs b
+          from draft_author_input_property_values a
+          inner join draft_author_inputs b
           on a.created_input_id = b.id
           inner join draft_forms c
           on b.draft_form_id = c.id
@@ -1064,6 +1101,68 @@ export const deleteDraftForm = async (req: Request, res: Response) => {
     if (!result) throw new Error("There was an error deleting this draft form");
 
     res.send(result.rows);
+  } catch (error) {
+    let message = parseErrorMessage(error);
+
+    return res.status(500).json({ message });
+  }
+};
+
+export const submitForm = async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query(
+      `
+      insert into form_submissions (
+        form_id,
+        created_at,
+        created_by_id
+      ) values (
+        $1,
+        now(),
+        $2 
+      )
+      returning *
+    `,
+      [req.body.formId, req.user.id]
+    );
+
+    if (!result) throw new Error("There was an error adding this form submission");
+
+    const submittedForm = result.rows[0];
+
+    if (!submittedForm) throw new Error("No submitted form was returned");
+
+    const submittedInputs = [];
+
+    req.body.inputs.forEach(async (input) => {
+      const result = await pool.query(
+        `
+        insert into submitted_input_values
+        (
+          submission_id,
+          created_input_id, 
+          value, 
+          created_at, 
+          created_by_id
+        )
+        values
+        (
+          $1,
+          $2, 
+          $3, 
+          now(), 
+          $4
+        ) returning *;
+      `,
+        [submittedForm.id, input.id, input.value, req.user.id]
+      );
+
+      if (!result) throw new Error("There was an issue inserting the input values");
+
+      submittedInputs.push(result.rows[0]);
+    });
+
+    res.send({ formSubmission: result.rows[0], submittedInputs });
   } catch (error) {
     let message = parseErrorMessage(error);
 
