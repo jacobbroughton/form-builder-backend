@@ -6,7 +6,7 @@ import {
   checkForExistingDraft,
   deleteDraftForm,
   deletePublishedForm,
-  getAllForms,
+  getMyForms,
   getDefaultInputProperties,
   getDefaultInputPropertyOptions,
   getDefaultInputTypes,
@@ -22,13 +22,19 @@ import {
   updatePublishedForm,
   submitForm,
   getPrevFormSubmissions,
+  getPublicForms,
+  getAnsweredForms,
 } from "../controllers/formController.js";
 import { validateSession } from "../middleware/validateSession.js";
 import { validateOptionalSession } from "../middleware/validateOptionalSession.js";
 
 const router = express.Router();
 
-router.get("/get-all-forms/:sort", validateSession, getAllForms);
+router.get("/get-my-forms/:sort", validateSession, getMyForms);
+
+router.get("/get-public-forms/:sort", validateSession, getPublicForms);
+
+router.get("/get-answered-forms/:sort", validateSession, getAnsweredForms);
 
 router.get("/get-draft-forms", validateSession, getDraftForms);
 

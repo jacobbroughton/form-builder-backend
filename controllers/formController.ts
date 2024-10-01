@@ -8,7 +8,7 @@ import {
 import { hashify } from "../utils/hashify.js";
 import { parseErrorMessage } from "../utils/parseErrorMessage.js";
 
-export const getAllForms = async (req: Request, res: Response) => {
+export const getMyForms = async (req: Request, res: Response) => {
   try {
     // TODO - Impliment
     const result = await pool.query(
@@ -84,6 +84,104 @@ export const getAllForms = async (req: Request, res: Response) => {
   }
 };
 
+export const getPublicForms = async (req: Request, res: Response) => {
+  try {
+    // TODO - Impliment
+    const result = await pool.query(
+      `
+    select 
+      id,
+      draft_id,
+      title,
+      description,
+      passkey,
+      privacy_id,
+      is_deleted,
+      published_by_id,
+      published_at relevant_dt,
+      created_by_id,
+      created_at,
+      modified_by_id,
+      modified_at
+    from forms
+    where is_deleted = false
+    and privacy_id = 1 -- public
+     and created_by_id <> $1
+     order by ${
+       req.params.sort === "alphabetical-a-z"
+         ? "title asc"
+         : req.params.sort === "alphabetical-z-a"
+         ? "title desc"
+         : req.params.sort === "date-new-old"
+         ? "modified_at desc, created_at desc"
+         : req.params.sort === "date-old-new"
+         ? "modified_at asc, created_at asc"
+         : "modified_at asc, created_at asc"
+     }
+    `,
+      [req.user.id]
+    );
+
+    if (!result) throw new Error("There was an error fetching published forms");
+
+    res.send(result.rows);
+  } catch (error) {
+    let message = parseErrorMessage(error);
+
+    return res.status(500).json({ message });
+  }
+};
+
+export const getAnsweredForms = async (req: Request, res: Response) => {
+  try {
+    // TODO - Impliment
+    const result = await pool.query(
+      `
+    select 
+      a.id,
+      a.draft_id,
+      a.title,
+      a.description,
+      a.passkey,
+      a.privacy_id,
+      a.is_deleted,
+      a.published_by_id,
+      b.created_at relevant_dt,
+      a.created_by_id,
+      a.created_at,
+      a.modified_by_id,
+      a.modified_at
+    from forms a
+    inner join form_submissions b
+    on a.id = b.form_id
+    where a.is_deleted = false
+     and b.created_by_id = $1
+     and a.created_by_id <> $1
+     order by ${
+       req.params.sort === "alphabetical-a-z"
+         ? "a.title asc"
+         : req.params.sort === "alphabetical-z-a"
+         ? "a.title desc"
+         : req.params.sort === "date-new-old"
+         ? "b.created_at desc"
+         : req.params.sort === "date-old-new"
+         ? "b.created_at asc"
+         : "b.created_at asc"
+     }
+    `,
+      [req.user.id]
+    );
+
+    if (!result) throw new Error("There was an error fetching published forms");
+
+    res.send(result.rows);
+  } catch (error) {
+    let message = parseErrorMessage(error);
+
+    return res.status(500).json({ message });
+  }
+};
+
 export const getDraftForms = async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
@@ -123,6 +221,7 @@ export const getPublishedForm = async (req: Request, res: Response) => {
 
     const form = result.rows[0];
 
+    // Get inputs
     const result2 = await pool.query(
       `
       select a.*, 
@@ -134,9 +233,6 @@ export const getPublishedForm = async (req: Request, res: Response) => {
       on a.input_type_id = b.id
       left join submitted_input_values c
       on a.id = c.created_input_id
-      where form_id = $1
-      and is_deleted = false
-      and is_active = true
       and c.submission_id = (
         select id from form_submissions 
         where a.form_id = $1 
@@ -144,6 +240,9 @@ export const getPublishedForm = async (req: Request, res: Response) => {
         order by created_at desc
         limit 1
       )
+      where form_id = $1
+      and is_deleted = false
+      and is_active = true
     `,
       [form.id, req.user.id]
     );
@@ -153,6 +252,7 @@ export const getPublishedForm = async (req: Request, res: Response) => {
 
     let inputs = result2.rows;
 
+    
     const result3 = await pool.query(
       `
       select a.*, 
