@@ -24,6 +24,7 @@ import {
   getPrevFormSubmissions,
   getPublicForms,
   getAnsweredForms,
+  getInputSubmissions,
 } from "../controllers/formController.js";
 import { validateSession } from "../middleware/validateSession.js";
 import { validateOptionalSession } from "../middleware/validateOptionalSession.js";
@@ -59,6 +60,8 @@ router.get("/check-for-existing-draft", validateSession, checkForExistingDraft);
 router.get("/get-existing-empty-draft", validateSession, getExistingEmptyDraft);
 
 router.get("/get-prev-form-submissions/:formId", validateSession, getPrevFormSubmissions);
+
+router.get("/get-input-submissions/:submissionId", validateSession, getInputSubmissions);
 
 router.post("/store-initial-draft", validateSession, storeInitialDraft);
 

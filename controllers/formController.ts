@@ -600,6 +600,20 @@ export const getPrevFormSubmissions = async (req: Request, res: Response) => {
     if (!result)
       throw new Error("There was an error searching for previous form submission");
 
+    res.send(result.rows);
+  } catch (error) {
+    let message = parseErrorMessage(error);
+
+    return res.status(500).json({ message });
+  }
+};
+
+export const getInputSubmissions = async (req: Request, res: Response) => {
+  try {
+    const { submissionId } = req.params;
+
+    if (!submissionId) throw new Error("No submission ID was provided in controller");
+
     const result2 = await pool.query(
       `
       select * from submitted_input_values
@@ -607,19 +621,19 @@ export const getPrevFormSubmissions = async (req: Request, res: Response) => {
       and submission_id = $2
       order by created_at desc
     `,
-      [req.user.id, result.rows[0].id]
+      [req.user.id, submissionId]
     );
 
     if (!result2)
       throw new Error("There was a problem fetching latest submitted input values");
 
-    const latestInputSubmissions = {}
+    const latestInputSubmissions = {};
 
-    result2.rows.forEach(inputSubmission => {
-      latestInputSubmissions[inputSubmission.created_input_id] = inputSubmission
-    })
+    result2.rows.forEach((inputSubmission) => {
+      latestInputSubmissions[inputSubmission.created_input_id] = inputSubmission;
+    });
 
-    res.send({ submissions: result.rows, latestInputSubmissions });
+    res.send(latestInputSubmissions);
   } catch (error) {
     let message = parseErrorMessage(error);
 
