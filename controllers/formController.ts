@@ -154,6 +154,12 @@ export const getAnsweredForms = async (req: Request, res: Response) => {
     from forms a
     inner join form_submissions b
     on a.id = b.form_id
+    and b.id = (
+      select id from form_submissions
+      where form_id = b.form_id
+      order by created_at desc
+      limit 1
+    )
     where a.is_deleted = false
      and b.created_by_id = $1
      and a.created_by_id <> $1
@@ -168,6 +174,7 @@ export const getAnsweredForms = async (req: Request, res: Response) => {
          ? "b.created_at asc"
          : "b.created_at asc"
      }
+      
     `,
       [req.user.id]
     );
@@ -235,8 +242,8 @@ export const getPublishedForm = async (req: Request, res: Response) => {
       on a.id = c.created_input_id
       and c.submission_id = (
         select id from form_submissions 
-        where a.form_id = $1 
-        and a.created_by_id = $2
+        where form_id = $1 
+        and created_by_id = $2
         order by created_at desc
         limit 1
       )
@@ -252,7 +259,6 @@ export const getPublishedForm = async (req: Request, res: Response) => {
 
     let inputs = result2.rows;
 
-    
     const result3 = await pool.query(
       `
       select a.*, 
@@ -594,7 +600,26 @@ export const getPrevFormSubmissions = async (req: Request, res: Response) => {
     if (!result)
       throw new Error("There was an error searching for previous form submission");
 
-    res.send(result.rows);
+    const result2 = await pool.query(
+      `
+      select * from submitted_input_values
+      where created_by_id = $1
+      and submission_id = $2
+      order by created_at desc
+    `,
+      [req.user.id, result.rows[0].id]
+    );
+
+    if (!result2)
+      throw new Error("There was a problem fetching latest submitted input values");
+
+    const latestInputSubmissions = {}
+
+    result2.rows.forEach(inputSubmission => {
+      latestInputSubmissions[inputSubmission.created_input_id] = inputSubmission
+    })
+
+    res.send({ submissions: result.rows, latestInputSubmissions });
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -1232,7 +1257,7 @@ export const submitForm = async (req: Request, res: Response) => {
 
     if (!submittedForm) throw new Error("No submitted form was returned");
 
-    const submittedInputs = [];
+    // const submittedInputs = [];
 
     req.body.inputs.forEach(async (input) => {
       const result = await pool.query(
@@ -1259,10 +1284,10 @@ export const submitForm = async (req: Request, res: Response) => {
 
       if (!result) throw new Error("There was an issue inserting the input values");
 
-      submittedInputs.push(result.rows[0]);
+      // submittedInputs.push(result.rows[0]);
     });
 
-    res.send({ formSubmission: result.rows[0], submittedInputs });
+    res.send(result.rows[0]);
   } catch (error) {
     let message = parseErrorMessage(error);
 
