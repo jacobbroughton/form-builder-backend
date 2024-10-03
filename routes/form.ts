@@ -25,6 +25,7 @@ import {
   getPublicForms,
   getAnsweredForms,
   getInputSubmissions,
+  deletePublishedInput,
 } from "../controllers/formController.js";
 import { validateSession } from "../middleware/validateSession.js";
 import { validateOptionalSession } from "../middleware/validateOptionalSession.js";
@@ -90,6 +91,8 @@ router.put(
 );
 
 router.put(`/delete-draft-form/:formId`, validateSession, deleteDraftForm);
+
+router.put(`/delete-published-input/:inputId`, validateSession, deletePublishedInput);
 
 router.put(`/delete-published-form/:formId`, validateSession, deletePublishedForm);
 

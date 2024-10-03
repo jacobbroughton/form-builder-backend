@@ -228,36 +228,68 @@ export const getPublishedForm = async (req: Request, res: Response) => {
 
     const form = result.rows[0];
 
-    // Get inputs
-    const result2 = await pool.query(
-      `
-      select a.*, 
-      b.name input_type_name,
-      b.description input_type_description,
-      c.value existing_answer
-      from author_inputs a
-      inner join input_types b
-      on a.input_type_id = b.id
-      left join submitted_input_values c
-      on a.id = c.created_input_id
-      and c.submission_id = (
-        select id from form_submissions 
-        where form_id = $1 
-        and created_by_id = $2
-        order by created_at desc
-        limit 1
-      )
-      where form_id = $1
-      and is_deleted = false
-      and is_active = true
-    `,
-      [form.id, req.user.id]
-    );
+    console.log("found form", form);
 
-    if (!result2)
-      throw new Error("Something happened while trying to get input types for this form");
+    let inputs;
 
-    let inputs = result2.rows;
+    if (req.user?.id) {
+      // Get inputs
+      const result2 = await pool.query(
+        `
+        select a.*, 
+        b.name input_type_name,
+        b.description input_type_description,
+        c.value existing_answer
+        from author_inputs a
+        inner join input_types b
+        on a.input_type_id = b.id
+        left join submitted_input_values c
+        on a.id = c.created_input_id
+        and c.submission_id = (
+          select id from form_submissions 
+          where form_id = $1 
+          and created_by_id = $2
+          order by created_at desc
+          limit 1
+        )
+        where form_id = $1
+        and is_deleted = false
+        and is_active = true
+      `,
+        [form.id, req.user?.id]
+      );
+
+      if (!result2)
+        throw new Error(
+          "Something happened while trying to get input types for this form"
+        );
+
+      inputs = result2.rows;
+    } else {
+      // Get inputs
+      const result2 = await pool.query(
+        `
+        select a.*, 
+        b.name input_type_name,
+        b.description input_type_description,
+        '' existing_answer
+        from author_inputs a
+        inner join input_types b
+        on a.input_type_id = b.id
+        where form_id = $1
+        and is_deleted = false
+        and is_active = true
+      `,
+        [form.id]
+      );
+
+      if (!result2)
+        throw new Error(
+          "Something happened while trying to get input types for this form"
+        );
+
+      inputs = result2.rows;
+    }
 
     const result3 = await pool.query(
       `
@@ -749,16 +781,18 @@ export const updateDraftForm = async (
         title = $1,
         description = $2,
         passkey = $3,
-        modified_by_id = $4,
-        privacy_id = $5,
+        can_resubmit = $4,
+        modified_by_id = $5,
+        privacy_id = $6,
         modified_at = now()
-      where id = $6
+      where id = $7
       returning *
     `,
       [
         req.body.title,
         req.body.description,
         req.body.privacyPasskey,
+        req.body.canResubmit,
         req.user.id,
         req.body.privacyId,
         req.body.formId,
@@ -1077,6 +1111,7 @@ export const publishForm = async (req: Request, res: Response) => {
           passkey,
           privacy_id,
           is_deleted,
+          can_resubmit,
           published_by_id,
           published_at,
           created_by_id,
@@ -1091,6 +1126,7 @@ export const publishForm = async (req: Request, res: Response) => {
           a.passkey,
           a.privacy_id,
           false,
+          a.can_resubmit,
           $2,
           now(),
           a.created_by_id,
@@ -1235,6 +1271,30 @@ export const deleteDraftForm = async (req: Request, res: Response) => {
       returning *
     `,
       [req.params.formId]
+    );
+
+    if (!result) throw new Error("There was an error deleting this draft form");
+
+    res.send(result.rows);
+  } catch (error) {
+    let message = parseErrorMessage(error);
+
+    return res.status(500).json({ message });
+  }
+};
+
+export const deletePublishedInput = async (req: Request, res: Response) => {
+  try {
+    if (!req.params.inputId) throw new Error("No input id provided, cancelling deletion");
+
+    const result = await pool.query(
+      `
+      update author_inputs
+      set is_deleted = true
+      where id = $1
+      returning *
+    `,
+      [req.params.inputId]
     );
 
     if (!result) throw new Error("There was an error deleting this draft form");
