@@ -27,10 +27,6 @@ export async function validateSession(req: Request, res: Response, next: NextFun
 
     let session = await getSessionById(decoded.session.session_id);
 
-    console.log("token", token);
-    console.log("decoded", decoded);
-    console.log("Found session", session);
-
     if (!session || !session.is_active || new Date() > new Date(session.expires_at)) {
       return res
         .status(401)
@@ -85,16 +81,15 @@ export async function validateSession(req: Request, res: Response, next: NextFun
         [newTokens.access_token, decoded.user.id]
       );
 
-      if (!sessionResult) throw new Error("There was an error updating cookie with new tokens")
-      
-      session = sessionResult.rows[0]
+      if (!sessionResult)
+        throw new Error("There was an error updating cookie with new tokens");
+
+      session = sessionResult.rows[0];
     } else {
       // if valid session, extend expiration date of session
       let { expires_at } = await extendSession(session.session_id, 86400000); // extend by one day
       req.session?.cookie._expires = expires_at;
     }
-
-    console.log("session before making cookie", session);
 
     const { session_id, user_id, expires_at, is_active } = session;
 

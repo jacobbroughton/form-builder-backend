@@ -216,25 +216,70 @@ export const getPublishedForm = async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
       `
-      select * from forms
-      where id = $1
+      select b.needs_passkey
+      from forms a
+      inner join privacy_options b
+      on a.privacy_id = b.id
+      where a.id = $1
+      limit 1
     `,
       [req.params.formId]
     );
 
-    if (!result) throw new Error("There was an error getting this form");
+    if (!result)
+      throw new Error("There was an error checking if the form needs a passkey");
 
-    if (!result.rows[0]) throw new Error("No form was found");
+    if (!result.rows) throw new Error("No form was found");
 
-    const form = result.rows[0];
+    const needsPasskey = result.rows[0].needs_passkey;
+    console.log("needsPasskey", needsPasskey);
 
-    console.log("found form", form);
+    if (needsPasskey) {
+      const result = await pool.query(
+        `
+        select * from passkey_attempts
+        where form_id = $1
+        and user_id = $2
+        and is_valid = true
+        
+      `,
+        [req.params.formId, req.user.id]
+      );
+
+      if (!result)
+        throw new Error("There was an error checking passkey attempts for this form");
+
+      if (!result.rows[0]) {
+        res.status(403).json({ message: "Must enter passcode to access form" });
+        return;
+      }
+
+      console.log("Found successful passkey attempt", result.rows[0]);
+    }
+
+    const result2 = await pool.query(
+      `
+      select a.*, 
+      b.needs_passkey
+      from forms a
+      inner join privacy_options b
+      on a.privacy_id = b.id
+      where a.id = $1
+    `,
+      [req.params.formId]
+    );
+
+    if (!result2) throw new Error("There was an error getting this form");
+
+    if (!result2.rows[0]) throw new Error("No form was found");
+
+    const form = result2.rows[0];
 
     let inputs;
 
     if (req.user?.id) {
       // Get inputs
-      const result2 = await pool.query(
+      const result = await pool.query(
         `
         select a.*, 
         b.name input_type_name,
@@ -259,15 +304,15 @@ export const getPublishedForm = async (req: Request, res: Response) => {
         [form.id, req.user?.id]
       );
 
-      if (!result2)
+      if (!result)
         throw new Error(
           "Something happened while trying to get input types for this form"
         );
 
-      inputs = result2.rows;
+      inputs = result.rows;
     } else {
       // Get inputs
-      const result2 = await pool.query(
+      const result = await pool.query(
         `
         select a.*, 
         b.name input_type_name,
@@ -283,12 +328,12 @@ export const getPublishedForm = async (req: Request, res: Response) => {
         [form.id]
       );
 
-      if (!result2)
+      if (!result)
         throw new Error(
           "Something happened while trying to get input types for this form"
         );
 
-      inputs = result2.rows;
+      inputs = result.rows;
     }
 
     const result3 = await pool.query(
@@ -601,8 +646,6 @@ export const getExistingEmptyDraft = async (req: Request, res: Response) => {
       [req.user.id]
     );
 
-    console.log(result.rows);
-
     if (!result) throw new Error("There was an error getting an existing empty draft");
 
     res.send(result.rows);
@@ -666,6 +709,32 @@ export const getInputSubmissions = async (req: Request, res: Response) => {
     });
 
     res.send(latestInputSubmissions);
+  } catch (error) {
+    let message = parseErrorMessage(error);
+
+    return res.status(500).json({ message });
+  }
+};
+
+export const getInput = async (req: Request, res: Response) => {
+  try {
+    const { inputId } = req.params;
+
+    if (!inputId) throw new Error("No input id was given");
+
+    const result = await pool.query(
+      `
+      select * from author_inputs
+      where id = $1
+      and created_by_id = $2
+      limit 1
+    `,
+      [inputId, req.user.id]
+    );
+
+    if (!result) throw new Error("There was an error renewing the existing draft");
+
+    res.send(result.rows[0]);
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -763,6 +832,7 @@ interface UpdateDraftBody {
   }[];
   privacyId: number;
   privacyPasskey: string;
+  canResubmit: boolean;
 }
 
 interface UpdateDraftRequest extends Request {
@@ -780,12 +850,12 @@ export const updateDraftForm = async (
       set 
         title = $1,
         description = $2,
-        passkey = $3,
-        can_resubmit = $4,
-        modified_by_id = $5,
-        privacy_id = $6,
+        passkey = $4,
+        can_resubmit = $5,
+        modified_by_id = $6,
+        privacy_id = $7,
         modified_at = now()
-      where id = $7
+      where id = $8
       returning *
     `,
       [
@@ -866,6 +936,7 @@ export const addNewInputToDraftForm = async (
           metadata_question,
           metadata_description,
           is_active,
+          is_required,
           created_at,
           created_by_id,
           modified_by_id,
@@ -876,8 +947,9 @@ export const addNewInputToDraftForm = async (
           $3,
           $4,
           true,
-          now(),
           $5,
+          now(),
+          $6,
           null,
           null
         ) returning * 
@@ -893,6 +965,7 @@ export const addNewInputToDraftForm = async (
         req.body.formId,
         req.body.inputMetadataQuestion,
         req.body.inputMetadataDescription,
+        req.body.isRequired,
         req.user.id,
       ]
     );
@@ -971,6 +1044,7 @@ export const addNewInputToPublishedForm = async (
           metadata_question,
           metadata_description,
           is_active,
+          is_required,
           published_at,
           published_by_id,
           created_at,
@@ -983,10 +1057,11 @@ export const addNewInputToPublishedForm = async (
           $3,
           $4,
           true,
-          now(),
           $5,
           now(),
-          $5,
+          $6,
+          now(),
+          $6,
           null,
           null
         ) returning * 
@@ -1002,6 +1077,7 @@ export const addNewInputToPublishedForm = async (
         req.body.formId,
         req.body.inputMetadataQuestion,
         req.body.inputMetadataDescription,
+        req.body.isRequired,
         req.user.id,
       ]
     );
@@ -1165,6 +1241,7 @@ export const publishForm = async (req: Request, res: Response) => {
           metadata_description,
           is_active,
           is_deleted,
+          is_required,
           published_at,
           published_by_id,
           created_at,
@@ -1179,6 +1256,7 @@ export const publishForm = async (req: Request, res: Response) => {
           a.metadata_description,
           a.is_active,
           a.is_deleted,
+          a.is_required,
           now(),
           $2,
           a.created_at,
@@ -1252,6 +1330,54 @@ export const publishForm = async (req: Request, res: Response) => {
     } else {
       res.send(result.rows);
     }
+  } catch (error) {
+    let message = parseErrorMessage(error);
+
+    return res.status(500).json({ message });
+  }
+};
+
+export const attemptPasskeyAccess = async (req: Request, res: Response) => {
+  try {
+    if (!req.body.formId) throw new Error("No form ID provided, cancelling...");
+    if (!req.body.passkey) throw new Error("No passkey provided, cancelling...");
+
+    const result = await pool.query(
+      `
+      select * from forms
+      where id = $1
+      limit 1
+    `,
+      [req.body.formId]
+    );
+
+    if (!result) throw new Error("There was an error fetching the form");
+
+    if (!result.rows[0])
+      throw new Error("Did not find a form matching the provided form ID");
+
+    const attemptValid = result.rows[0].passkey === req.body.passkey;
+
+    const result2 = await pool.query(
+      `
+      insert into passkey_attempts (
+      form_id,
+	    user_id,
+	    is_valid
+    ) values (
+      $1, 
+      $2,
+      $3
+    )
+    `,
+      [req.body.formId, req.user.id, attemptValid]
+    );
+
+    if (!result2) throw new Error("There was a problem adding this passkey attempt");
+
+    if (!attemptValid) throw new Error("Passkey did not match");
+
+    res.send(result.rows[0]);
   } catch (error) {
     let message = parseErrorMessage(error);
 
