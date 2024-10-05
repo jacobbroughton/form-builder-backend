@@ -496,6 +496,68 @@ export const getPrivacyOptions = async (
   }
 };
 
+export const getResponses = async (req: Request, res: Response) => {
+  try {
+    // make sure user is admin of form
+    const result = await pool.query(
+      `
+      select created_by_id from forms
+      where id = $1
+      limit 1  
+    `,
+      [req.params.formId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Form not found" });
+    }
+
+    const form = result.rows[0];
+
+    if (form.created_by_id !== req.user.id) {
+      return res
+        .status(403)
+        .json({ message: "You are not authorized to view responses to this form" });
+    }
+
+    // get inputs (active and inactive)
+    const result2 = await pool.query(
+      `
+      select * from author_inputs 
+      where form_id = $1
+    `,
+      [req.params.formId]
+    );
+
+    if (result2.rows.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "No inputs to respond to were found for this form" });
+    }
+
+    const inputs = result2.rows;
+
+    // get submitted answers (hide and show inputs on front end if needed)
+    const result3 = await pool.query(`
+      select a.*, b.form_id from submitted_input_values a
+      inner join author_inputs b
+      on a.created_input_id = b.id
+    `);
+
+    if (result3.rows.length === 0) {
+      return res.status(404).json({ message: "No responses were found for this form" });
+    }
+
+    const responses = result3.rows;
+
+    res.send({ form, inputs, responses });
+  } catch (error) {
+    let message = parseErrorMessage(error);
+
+    return res.status(500).json({ message });
+  }
+};
+
 export const getDefaultInputProperties = async (
   req: Request,
   res: Response

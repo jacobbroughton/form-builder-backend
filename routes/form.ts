@@ -28,6 +28,7 @@ import {
   deletePublishedInput,
   getInput,
   attemptPasskeyAccess,
+  getResponses,
 } from "../controllers/formController.js";
 import { validateSession } from "../middleware/validateSession.js";
 import { validateOptionalSession } from "../middleware/validateOptionalSession.js";
@@ -61,6 +62,8 @@ router.get(
 router.get("/check-for-existing-draft", validateSession, checkForExistingDraft);
 
 router.get("/get-existing-empty-draft", validateSession, getExistingEmptyDraft);
+
+router.get("/get-responses/:formId", validateSession, getResponses);
 
 router.get("/get-prev-form-submissions/:formId", validateSession, getPrevFormSubmissions);
 
