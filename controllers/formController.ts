@@ -212,6 +212,15 @@ export const getDraftForms = async (req: Request, res: Response) => {
   }
 };
 
+// export const checkIfPasskeyIsNeeded = async (req: Request, res: Response) => {
+//   try {
+//   } catch (error) {
+//     let message = parseErrorMessage(error);
+
+//     return res.status(500).json({ message });
+//   }
+// };
+
 export const getPublishedForm = async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
@@ -250,7 +259,10 @@ export const getPublishedForm = async (req: Request, res: Response) => {
         throw new Error("There was an error checking passkey attempts for this form");
 
       if (!result.rows[0]) {
-        res.status(403).json({ message: "Must enter passcode to access form" });
+        res.status(200).json({
+          requiresPasscode: true,
+          message: "Must enter passcode to access form",
+        });
         return;
       }
 
@@ -512,9 +524,9 @@ export const getResponses = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Form not found" });
     }
 
-    const form = result.rows[0];
+    const created_by_id = result.rows[0].created_by_id;
 
-    if (form.created_by_id !== req.user.id) {
+    if (created_by_id !== req.user.id) {
       return res
         .status(403)
         .json({ message: "You are not authorized to view responses to this form" });
@@ -538,19 +550,71 @@ export const getResponses = async (req: Request, res: Response) => {
     const inputs = result2.rows;
 
     // get submitted answers (hide and show inputs on front end if needed)
-    const result3 = await pool.query(`
-      select a.*, b.form_id from submitted_input_values a
+    const result3 = await pool.query(
+      `
+      select a.*, b.form_id, b.metadata_question, b.metadata_description 
+      from submitted_input_values a
       inner join author_inputs b
       on a.created_input_id = b.id
-    `);
+      where form_id = $1
+    `,
+      [req.params.formId]
+    );
 
     if (result3.rows.length === 0) {
-      return res.status(404).json({ message: "No responses were found for this form" });
+      return res.status(200).json({
+        inputs,
+        responses: [],
+        message: "No responses were found for this form",
+      });
     }
 
     const responses = result3.rows;
 
-    res.send({ form, inputs, responses });
+    const inputSubmissionBySubmissionId = {};
+
+    responses.forEach((response) => {
+      if (!inputSubmissionBySubmissionId[response.submission_id])
+        inputSubmissionBySubmissionId[response.submission_id] = [];
+      inputSubmissionBySubmissionId[response.submission_id].push(response);
+    });
+
+    console.log({ inputSubmissionBySubmissionId });
+
+    // get submission / user info
+    const result4 = await pool.query(
+      `
+      select a.*, b.email, b.username from form_submissions a
+      inner join users b
+      on a.created_by_id = b.id
+      where form_id = $1
+    `,
+      [req.params.formId]
+    );
+
+    if (result4.rows.length === 0) {
+      return res.status(200).json({
+        inputs,
+        responses: [],
+        message: "No form submission found for this form",
+      });
+    }
+
+    const shallowSubmissionsList = result4.rows;
+
+    const submissionsWithInfo = {};
+
+    result4.rows.forEach((submission) => {
+      if (!submissionsWithInfo[submission.id]) submissionsWithInfo[submission.id] = {};
+      if (!submissionsWithInfo[submission.id].info)
+        submissionsWithInfo[submission.id].info = submission;
+      if (!submissionsWithInfo[submission.id].inputs)
+        submissionsWithInfo[submission.id].inputs = [];
+      submissionsWithInfo[submission.id].inputs =
+        inputSubmissionBySubmissionId[submission.id];
+    });
+
+    res.json({ shallowSubmissionsList, submissionsWithInfo });
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -912,12 +976,12 @@ export const updateDraftForm = async (
       set 
         title = $1,
         description = $2,
-        passkey = $4,
-        can_resubmit = $5,
-        modified_by_id = $6,
-        privacy_id = $7,
+        passkey = $3,
+        can_resubmit = $4,
+        modified_by_id = $5,
+        privacy_id = $6,
         modified_at = now()
-      where id = $8
+      where id = $7
       returning *
     `,
       [

@@ -33,16 +33,16 @@ export async function findAndUpdateUser(googleUser: GoogleUserResult) {
           created_at,
           modified_at
         ) values (
-          null,
           $1,
           $2,
           $3,
+          $4,
           now(),
           null
         )
         returning *
         `,
-        [googleUser.name, googleUser.email, googleUser.picture]
+        [googleUser.email.split("@")[0], googleUser.name, googleUser.email, googleUser.picture]
       );
 
       if (!result) throw new Error("There was an error inserting the user");
