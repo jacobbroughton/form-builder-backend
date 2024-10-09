@@ -225,10 +225,19 @@ export const getPublishedForm = async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
       `
-      select b.needs_passkey
+      select a.*, 
+      b.needs_passkey,
+      (
+        select count(*) from form_submissions
+        where form_id = $1
+      ) num_responses,
+      c.picture created_by_profile_picture,
+      c.username created_by_username
       from forms a
       inner join privacy_options b
       on a.privacy_id = b.id
+      inner join users c
+      on a.created_by_id = c.id
       where a.id = $1
       limit 1
     `,
@@ -240,10 +249,11 @@ export const getPublishedForm = async (req: Request, res: Response) => {
 
     if (!result.rows) throw new Error("No form was found");
 
-    const needsPasskey = result.rows[0].needs_passkey;
-    console.log("needsPasskey", needsPasskey);
+    const form = result.rows[0];
 
-    if (needsPasskey) {
+    const needsPasskey = result.rows[0].needs_passkey;
+
+    if (form.created_by_id !== req.user?.id && needsPasskey) {
       const result = await pool.query(
         `
         select * from passkey_attempts
@@ -268,24 +278,6 @@ export const getPublishedForm = async (req: Request, res: Response) => {
 
       console.log("Found successful passkey attempt", result.rows[0]);
     }
-
-    const result2 = await pool.query(
-      `
-      select a.*, 
-      b.needs_passkey
-      from forms a
-      inner join privacy_options b
-      on a.privacy_id = b.id
-      where a.id = $1
-    `,
-      [req.params.formId]
-    );
-
-    if (!result2) throw new Error("There was an error getting this form");
-
-    if (!result2.rows[0]) throw new Error("No form was found");
-
-    const form = result2.rows[0];
 
     let inputs;
 
@@ -528,7 +520,7 @@ export const getResponses = async (req: Request, res: Response) => {
 
     if (created_by_id !== req.user.id) {
       return res
-        .status(403)
+        .status(200)
         .json({ message: "You are not authorized to view responses to this form" });
     }
 
@@ -543,7 +535,7 @@ export const getResponses = async (req: Request, res: Response) => {
 
     if (result2.rows.length === 0) {
       return res
-        .status(404)
+        .status(200)
         .json({ message: "No inputs to respond to were found for this form" });
     }
 
@@ -574,12 +566,10 @@ export const getResponses = async (req: Request, res: Response) => {
     const inputSubmissionBySubmissionId = {};
 
     responses.forEach((response) => {
-      if (!inputSubmissionBySubmissionId[response.submission_id])
-        inputSubmissionBySubmissionId[response.submission_id] = [];
-      inputSubmissionBySubmissionId[response.submission_id].push(response);
+      let submissionArr = inputSubmissionBySubmissionId[response.submission_id];
+      if (!submissionArr) submissionArr = [];
+      submissionArr.push(response);
     });
-
-    console.log({ inputSubmissionBySubmissionId });
 
     // get submission / user info
     const result4 = await pool.query(
@@ -858,7 +848,32 @@ export const getInput = async (req: Request, res: Response) => {
       [inputId, req.user.id]
     );
 
-    if (!result) throw new Error("There was an error renewing the existing draft");
+    if (!result) throw new Error("There was an error getting the input");
+
+    res.send(result.rows[0]);
+  } catch (error) {
+    let message = parseErrorMessage(error);
+
+    return res.status(500).json({ message });
+  }
+};
+
+export const getInputType = async (req: Request, res: Response) => {
+  try {
+    const { inputTypeId } = req.params;
+
+    if (!inputTypeId) throw new Error("No input type id was given");
+
+    const result = await pool.query(
+      `
+      select * from input_types
+      where id = $1
+      limit 1
+    `,
+      [inputTypeId]
+    );
+
+    if (!result) throw new Error("There was an error getting the input type");
 
     res.send(result.rows[0]);
   } catch (error) {

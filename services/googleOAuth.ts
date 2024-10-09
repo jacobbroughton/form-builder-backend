@@ -69,6 +69,8 @@ export async function getGoogleUser({
       }
     );
 
+    if (!response) throw new Error ("No response from googleapi")
+
     return response.data;
   } catch (error: any) {
     throw new Error(error.message);

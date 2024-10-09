@@ -29,6 +29,7 @@ import {
   getInput,
   attemptPasskeyAccess,
   getResponses,
+  getInputType,
 } from "../controllers/formController.js";
 import { validateSession } from "../middleware/validateSession.js";
 import { validateOptionalSession } from "../middleware/validateOptionalSession.js";
@@ -70,6 +71,8 @@ router.get("/get-prev-form-submissions/:formId", validateSession, getPrevFormSub
 router.get("/get-input-submissions/:submissionId", validateSession, getInputSubmissions);
 
 router.get("/get-input/:inputId", validateSession, getInput);
+
+router.get("/get-input-type/:inputTypeId", validateSession, getInputType);
 
 router.post("/store-initial-draft", validateSession, storeInitialDraft);
 
