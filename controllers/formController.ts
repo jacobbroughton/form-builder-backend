@@ -90,23 +90,32 @@ export const getPublicForms = async (req: Request, res: Response) => {
     const result = await pool.query(
       `
     select 
-      id,
-      draft_id,
-      title,
-      description,
-      passkey,
-      privacy_id,
-      is_deleted,
-      published_by_id,
-      published_at relevant_dt,
-      created_by_id,
-      created_at,
-      modified_by_id,
-      modified_at
-    from forms
+      a.id,
+      a.draft_id,
+      a.title,
+      a.description,
+      a.passkey,
+      a.privacy_id,
+      a.is_deleted,
+      a.published_by_id,
+      a.published_at relevant_dt,
+      a.created_by_id,
+      a.created_at,
+      a.modified_by_id,
+      a.modified_at
+    from forms a
+    inner join form_submissions b
+    on a.id = b.form_id
+    and b.id = (
+      select id from form_submissions
+      where form_id = b.form_id
+      order by created_at desc
+      limit 1
+    )
     where is_deleted = false
     and privacy_id = 1 -- public
-     and created_by_id <> $1
+     and a.created_by_id <> $1
+     and b.created_by_id <> $1
      order by ${
        req.params.sort === "alphabetical-a-z"
          ? "title asc"
@@ -544,10 +553,17 @@ export const getResponses = async (req: Request, res: Response) => {
     // get submitted answers (hide and show inputs on front end if needed)
     const result3 = await pool.query(
       `
-      select a.*, b.form_id, b.metadata_question, b.metadata_description 
+      select a.*, 
+      b.form_id, 
+      b.metadata_question, 
+      b.metadata_description,
+      b.is_required,
+      c.name input_type_name 
       from submitted_input_values a
       inner join author_inputs b
       on a.created_input_id = b.id
+      inner join input_types c
+      on b.input_type_id = c.id
       where form_id = $1
     `,
       [req.params.formId]
@@ -566,8 +582,10 @@ export const getResponses = async (req: Request, res: Response) => {
     const inputSubmissionBySubmissionId = {};
 
     responses.forEach((response) => {
+      console.log(response);
+      if (!inputSubmissionBySubmissionId[response.submission_id])
+        inputSubmissionBySubmissionId[response.submission_id] = [];
       let submissionArr = inputSubmissionBySubmissionId[response.submission_id];
-      if (!submissionArr) submissionArr = [];
       submissionArr.push(response);
     });
 
@@ -594,14 +612,16 @@ export const getResponses = async (req: Request, res: Response) => {
 
     const submissionsWithInfo = {};
 
-    result4.rows.forEach((submission) => {
-      if (!submissionsWithInfo[submission.id]) submissionsWithInfo[submission.id] = {};
-      if (!submissionsWithInfo[submission.id].info)
-        submissionsWithInfo[submission.id].info = submission;
-      if (!submissionsWithInfo[submission.id].inputs)
-        submissionsWithInfo[submission.id].inputs = [];
-      submissionsWithInfo[submission.id].inputs =
-        inputSubmissionBySubmissionId[submission.id];
+    result4.rows.forEach((submissionInfo) => {
+      console.log(inputSubmissionBySubmissionId);
+      if (!submissionsWithInfo[submissionInfo.id])
+        submissionsWithInfo[submissionInfo.id] = {};
+      if (!submissionsWithInfo[submissionInfo.id].info)
+        submissionsWithInfo[submissionInfo.id].info = submissionInfo;
+      if (!submissionsWithInfo[submissionInfo.id].inputs)
+        submissionsWithInfo[submissionInfo.id].inputs = [];
+      submissionsWithInfo[submissionInfo.id].inputs =
+        inputSubmissionBySubmissionId[submissionInfo.id];
     });
 
     res.json({ shallowSubmissionsList, submissionsWithInfo });
@@ -1653,6 +1673,65 @@ export const deletePublishedForm = async (req: Request, res: Response) => {
     if (!result) throw new Error("There was an error deleting this published form");
 
     res.send(result.rows);
+  } catch (error) {
+    let message = parseErrorMessage(error);
+
+    return res.status(500).json({ message });
+  }
+};
+
+export const addFormView = async (req: Request, res: Response) => {
+  try {
+    if (!req.body.formId) throw new Error("No form ID provided, cancelling view add");
+
+    const result = await pool.query(
+      `
+      insert into views (
+        form_id,
+        user_id
+      ) values (
+        $1,
+        $2
+      )
+    `,
+      [req.body.formId, req.user?.id || null]
+    );
+
+    if (!result) throw new Error("There was an error adding this form view");
+
+    return res.status(200).json({ message: "View successfully added" });
+  } catch (error) {
+    let message = parseErrorMessage(error);
+
+    return res.status(500).json({ message });
+  }
+};
+
+export const getRecentFormViews = async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query(
+      `
+      select 
+      a.form_id,
+      max(a.created_at) as max_created_at,
+      b.title,
+      c.picture profile_picture
+      from views a
+      inner join forms b
+      on a.form_id = b.id
+      inner join users c 
+      on b.created_by_id = c.id
+      where a.user_id = $1
+      group by a.form_id, b.title, c.picture
+      order by max_created_at desc
+      limit 10
+    `,
+      [req.user?.id]
+    );
+
+    if (!result) throw new Error("There was an error getting recent views");
+
+    return res.status(200).send(result.rows);
   } catch (error) {
     let message = parseErrorMessage(error);
 

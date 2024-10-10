@@ -2,15 +2,13 @@ import axios from "axios";
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { config } from "../config/config.js";
+import { getGoogleOAuthTokens } from "../services/googleOAuth.js";
 import {
-  clearSessionOnBackend,
   createSession,
   destorySessionsForUser,
   findAndUpdateUser,
 } from "../utils/authQueries.js";
-import { getGoogleOAuthTokens, getNewAccessToken } from "../services/googleOAuth.js";
 import { decodeToken } from "../utils/decodeToken.js";
-import { pool } from "../config/database.js";
 
 export const getMe = async (req: Request, res: Response) => {
   try {

@@ -30,6 +30,8 @@ import {
   attemptPasskeyAccess,
   getResponses,
   getInputType,
+  addFormView,
+  getRecentFormViews,
 } from "../controllers/formController.js";
 import { validateSession } from "../middleware/validateSession.js";
 import { validateOptionalSession } from "../middleware/validateOptionalSession.js";
@@ -74,6 +76,8 @@ router.get("/get-input/:inputId", validateSession, getInput);
 
 router.get("/get-input-type/:inputTypeId", validateSession, getInputType);
 
+router.get("/get-recent-form-views", validateSession, getRecentFormViews);
+
 router.post("/store-initial-draft", validateSession, storeInitialDraft);
 
 router.post("/renew-existing-empty-draft", validateSession, renewExistingEmptyDraft);
@@ -91,6 +95,8 @@ router.post("/publish", validateSession, publishForm);
 router.post("/submit-form", validateSession, submitForm);
 
 router.post("/attempt-passkey-access", validateSession, attemptPasskeyAccess);
+
+router.post("/add-form-view", validateOptionalSession, addFormView);
 
 router.put("/update-draft-form", validateSession, updateDraftForm);
 
