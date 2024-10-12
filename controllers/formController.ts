@@ -1306,6 +1306,44 @@ export const addNewInputToPublishedForm = async (
   }
 };
 
+export const editInput = async (req: Request, res: Response) => {
+  try {
+    console.log(req.body.input);
+    if (!req.body.input)
+      throw new Error(
+        "There was no input included in request body while trying to delete"
+      );
+
+    const result = await pool.query(
+      `
+      update author_inputs
+      set metadata_question = $1,
+      metadata_description = $2,
+      is_active = $3,
+      is_required = $4,
+      modified_by_id = $5,
+      modified_at = now()
+      returning *
+    `,
+      [
+        req.body.input.metadata_question,
+        req.body.input.metadata_description,
+        req.body.input.is_active,
+        req.body.input.is_required,
+        req.user.id,
+      ]
+    );
+
+    if (!result) throw new Error("There was an error updating the input");
+
+    res.send(result.rows[0]);
+  } catch (error) {
+    let message = parseErrorMessage(error);
+
+    return res.status(500).json({ message });
+  }
+};
+
 export const changeInputEnabledStatus = async (req: Request, res: Response) => {
   try {
     const result = await pool.query(

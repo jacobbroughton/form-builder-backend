@@ -32,6 +32,7 @@ import {
   getInputType,
   addFormView,
   getRecentFormViews,
+  editInput
 } from "../controllers/formController.js";
 import { validateSession } from "../middleware/validateSession.js";
 import { validateOptionalSession } from "../middleware/validateOptionalSession.js";
@@ -89,6 +90,8 @@ router.post(
   validateSession,
   addNewInputToPublishedForm
 );
+
+router.post("/edit-input", validateSession, editInput)
 
 router.post("/publish", validateSession, publishForm);
 
