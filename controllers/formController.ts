@@ -396,9 +396,14 @@ export const getDraftForm = async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
       `
-      select * from draft_forms
-      where id = $1
-      and is_deleted = false
+      select a.*, 
+      b.picture created_by_profile_picture,
+      b.username created_by_username 
+      from draft_forms a
+      inner join users b
+      on a.created_by_id = b.id
+      where a.id = $1
+      and a.is_deleted = false
     `,
       [req.params.formId]
     );
@@ -868,9 +873,30 @@ export const getInput = async (req: Request, res: Response) => {
       [inputId, req.user.id]
     );
 
-    if (!result) throw new Error("There was an error getting the input");
+    if (!result.rows[0]) throw new Error("No input found");
 
-    res.send(result.rows[0]);
+    const inputInfo = result.rows[0];
+
+    console.log("inputInfo", inputInfo);
+
+    const result2 = await pool.query(
+      `
+      select a.*, 
+      b.* from author_input_property_values a
+      inner join input_properties b
+      on a.property_id = b.id
+      inner join author_inputs c 
+      on a.created_input_id = c.id
+      where c.id = $1
+    `,
+      [inputInfo.id]
+    );
+
+    if (!result2) throw new Error("There was an error getting the input properties");
+
+    const properties = result2.rows;
+
+    res.send({ info: inputInfo, properties });
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -1195,6 +1221,7 @@ export const addNewInputToPublishedForm = async (
   res: Response
 ): Promise<object | void> => {
   try {
+    console.log("addNewInputToPublishedForm", req.body);
     const result1 = await pool.query(
       `
       with inserted as (
@@ -1308,8 +1335,9 @@ export const addNewInputToPublishedForm = async (
 
 export const editInput = async (req: Request, res: Response) => {
   try {
-    console.log(req.body.input);
-    if (!req.body.input)
+    const input = req.body;
+
+    if (!input)
       throw new Error(
         "There was no input included in request body while trying to delete"
       );
@@ -1326,10 +1354,10 @@ export const editInput = async (req: Request, res: Response) => {
       returning *
     `,
       [
-        req.body.input.metadata_question,
-        req.body.input.metadata_description,
-        req.body.input.is_active,
-        req.body.input.is_required,
+        input.info.metadata_question,
+        input.info.metadata_description,
+        input.info.is_active,
+        input.info.is_required,
         req.user.id,
       ]
     );
