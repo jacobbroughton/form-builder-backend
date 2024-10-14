@@ -230,6 +230,156 @@ export const getDraftForms = async (req: Request, res: Response) => {
 //   }
 // };
 
+export const getDraftForm = async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query(
+      `
+      select a.*, 
+      b.picture created_by_profile_picture,
+      b.username created_by_username 
+      from draft_forms a
+      inner join users b
+      on a.created_by_id = b.id
+      where a.id = $1
+      and a.is_deleted = false
+    `,
+      [req.params.formId]
+    );
+
+    if (!result) throw new Error("There was an error getting this form");
+
+    if (!result.rows[0]) {
+      res.send([]);
+    }
+
+    const form = result.rows[0];
+
+    const result2 = await pool.query(
+      `
+      select a.*, 
+      b.name input_type_name,
+      b.description input_type_description
+      from draft_author_inputs a
+      inner join input_types b
+      on a.input_type_id = b.id
+      where draft_form_id = $1
+      and is_deleted = false
+    `,
+      [form.id]
+    );
+
+    if (!result2)
+      throw new Error("Something happened while trying to get input types for this form");
+
+    let inputs = result2.rows;
+
+    const result3 = await pool.query(
+      `
+      select a.*, 
+      b.* from draft_author_input_property_values a
+      inner join input_properties b
+      on a.property_id = b.id
+      inner join draft_author_inputs c 
+      on a.created_input_id = c.id
+      where c.draft_form_id = $1
+    `,
+      [form.id]
+    );
+
+    let properties = result3.rows;
+    let propertiesObj: {
+      [key: string]: any;
+    } = {};
+
+    properties.forEach((property) => {
+      if (!propertiesObj[`${property.created_input_id}`])
+        propertiesObj[`${property.created_input_id}`] = {};
+      propertiesObj[`${property.created_input_id}`][property.property_key] = property;
+    });
+
+    inputs = inputs.map((input) => {
+      return {
+        ...input,
+        properties: propertiesObj[input.id],
+      };
+    });
+
+    const result4 = await pool.query(
+      `
+      select a.* from draft_author_multiple_choice_options a
+      inner join draft_author_inputs b
+      on a.input_id = b.id
+      where b.draft_form_id = $1
+    `,
+      [form.id]
+    );
+
+    type OptionType = {
+      id: string;
+      input_id: string;
+      label: string;
+      is_deleted: boolean;
+      created_at: string;
+      created_by_id: string;
+    };
+
+    const multipleChoiceOptions = result4.rows;
+    const multipleChoiceOptionsObj: { [key: string]: OptionType[] } = {};
+
+    multipleChoiceOptions.forEach((option) => {
+      if (!multipleChoiceOptionsObj[`${option.input_id}`])
+        multipleChoiceOptionsObj[`${option.input_id}`] = [];
+
+      option.checked = false;
+      multipleChoiceOptionsObj[`${option.input_id}`].push(option);
+    });
+
+    inputs = inputs.map((input) => {
+      return {
+        ...input,
+        options: multipleChoiceOptionsObj[input.id] || [],
+      };
+    });
+
+    const result5 = await pool.query(
+      `
+      select a.* from draft_author_linear_scales a
+      inner join draft_author_inputs b
+      on a.input_id = b.id
+      where b.draft_form_id = $1
+    `,
+      [form.id]
+    );
+
+    const linearScales = result5.rows;
+    const linearScalesObj = {};
+
+    linearScales.forEach((linearScale) => {
+      linearScalesObj[linearScale.input_id] = {
+        min: linearScale.min,
+        max: linearScale.max,
+      };
+    });
+
+    inputs = inputs.map((input) => {
+      return {
+        ...input,
+        linearScale: linearScalesObj[input.id] || null,
+      };
+    });
+
+    res.send({
+      form,
+      inputs,
+      propertiesObj,
+    });
+  } catch (error) {
+    let message = parseErrorMessage(error);
+
+    return res.status(500).json({ message });
+  }
+};
+
 export const getPublishedForm = async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
@@ -380,98 +530,12 @@ export const getPublishedForm = async (req: Request, res: Response) => {
       };
     });
 
-    res.send({
-      form,
-      inputs,
-      propertiesObj,
-    });
-  } catch (error) {
-    let message = parseErrorMessage(error);
-
-    return res.status(500).json({ message });
-  }
-};
-
-export const getDraftForm = async (req: Request, res: Response) => {
-  try {
-    const result = await pool.query(
-      `
-      select a.*, 
-      b.picture created_by_profile_picture,
-      b.username created_by_username 
-      from draft_forms a
-      inner join users b
-      on a.created_by_id = b.id
-      where a.id = $1
-      and a.is_deleted = false
-    `,
-      [req.params.formId]
-    );
-
-    if (!result) throw new Error("There was an error getting this form");
-
-    if (!result.rows[0]) {
-      res.send([]);
-    }
-
-    const form = result.rows[0];
-
-    const result2 = await pool.query(
-      `
-      select a.*, 
-      b.name input_type_name,
-      b.description input_type_description
-      from draft_author_inputs a
-      inner join input_types b
-      on a.input_type_id = b.id
-      where draft_form_id = $1
-      and is_deleted = false
-    `,
-      [form.id]
-    );
-
-    if (!result2)
-      throw new Error("Something happened while trying to get input types for this form");
-
-    let inputs = result2.rows;
-
-    const result3 = await pool.query(
-      `
-      select a.*, 
-      b.* from draft_author_input_property_values a
-      inner join input_properties b
-      on a.property_id = b.id
-      inner join draft_author_inputs c 
-      on a.created_input_id = c.id
-      where c.draft_form_id = $1
-    `,
-      [form.id]
-    );
-
-    let properties = result3.rows;
-    let propertiesObj: {
-      [key: string]: any;
-    } = {};
-
-    properties.forEach((property) => {
-      if (!propertiesObj[`${property.created_input_id}`])
-        propertiesObj[`${property.created_input_id}`] = {};
-      propertiesObj[`${property.created_input_id}`][property.property_key] = property;
-    });
-
-    inputs = inputs.map((input) => {
-      return {
-        ...input,
-        properties: propertiesObj[input.id],
-      };
-    });
-
     const result4 = await pool.query(
       `
       select a.* from author_multiple_choice_options a
-      inner join draft_author_inputs b
+      inner join author_inputs b
       on a.input_id = b.id
-      where b.draft_form_id = $1
+      where b.form_id = $1
     `,
       [form.id]
     );
@@ -499,7 +563,7 @@ export const getDraftForm = async (req: Request, res: Response) => {
     inputs = inputs.map((input) => {
       return {
         ...input,
-        options: multipleChoiceOptionsObj[input.id],
+        options: multipleChoiceOptionsObj[input.id] || [],
       };
     });
 
@@ -1151,6 +1215,7 @@ export const addNewInputToDraftForm = async (
 ): Promise<object | void> => {
   try {
     if (
+      req.body.inputTypeId === 7 && // multiple choice
       req.body.options.length !== 0 &&
       req.body.options.filter((option) => option.label === "").length !== 0
     ) {
@@ -1206,14 +1271,15 @@ export const addNewInputToDraftForm = async (
     const createdInput = result1.rows[0];
 
     let numCustomProperties = 0;
+    let numMultipleChoiceOptions = 0;
 
-    let numMultipleChoiceOptions = req.body.options.length;
+    if (req.body.options && req.body.inputTypeId === 7 /* multiple choice */) {
+      numMultipleChoiceOptions = req.body.options.length;
 
-    if (req.body.options) {
       req.body.options.forEach(async (option, i: number) => {
         await pool.query(
           `
-          insert into author_multiple_choice_options (
+          insert into draft_author_multiple_choice_options (
             input_id,
             label,
             created_by_id
@@ -1226,6 +1292,26 @@ export const addNewInputToDraftForm = async (
           [createdInput.id, option.label, req.user.id]
         );
       });
+    }
+
+    if (req.body.inputTypeId === 6 /** Linear Scale */) {
+      console.log(req.body.linearScale);
+      const result = await pool.query(
+        `
+        insert into draft_author_linear_scales (
+          input_id,
+          min,
+          max,
+          created_by_id
+        ) values (
+          $1,
+          $2,
+          $3,
+          $4
+        )
+      `,
+        [createdInput.id, req.body.linearScale.min, req.body.linearScale.max, req.user.id]
+      );
     }
 
     if (req.body.properties) {
@@ -1294,7 +1380,14 @@ export const addNewInputToPublishedForm = async (
   res: Response
 ): Promise<object | void> => {
   try {
-    console.log("addNewInputToPublishedForm", req.body);
+    if (
+      req.body.inputTypeId === 7 && // multiple choice
+      req.body.options.length !== 0 &&
+      req.body.options.filter((option) => option.label === "").length !== 0
+    ) {
+      throw new Error("Cannot add multiple choice option without a label");
+    }
+
     const result1 = await pool.query(
       `
       with inserted as (
@@ -1348,6 +1441,28 @@ export const addNewInputToPublishedForm = async (
     const createdInput = result1.rows[0];
 
     let numCustomProperties = 0;
+    let numMultipleChoiceOptions = 0;
+
+    if (req.body.options && req.body.inputTypeId === 7 /* multiple choice */) {
+      numMultipleChoiceOptions = req.body.options.length;
+
+      req.body.options.forEach(async (option, i: number) => {
+        await pool.query(
+          `
+          insert into author_multiple_choice_options (
+            input_id,
+            label,
+            created_by_id
+          ) values (
+            $1, 
+            $2,
+            $3
+          )
+        `,
+          [createdInput.id, option.label, req.user.id]
+        );
+      });
+    }
 
     if (req.body.properties) {
       req.body.properties.forEach(async (property, i: number) => {
@@ -1392,12 +1507,20 @@ export const addNewInputToPublishedForm = async (
         if (property.value != null && property.value != "") numCustomProperties += 1;
 
         if (i == req.body.properties.length - 1) {
-          res.send({ ...result1.rows[0], num_custom_properties: numCustomProperties });
+          res.send({
+            ...result1.rows[0],
+            num_custom_properties: numCustomProperties,
+            num_multiple_choice_options: numMultipleChoiceOptions,
+          });
           return;
         }
       });
     } else {
-      res.send({ ...result1.rows[0], num_custom_properties: 0 });
+      res.send({
+        ...result1.rows[0],
+        num_custom_properties: 0,
+        num_multiple_choice_options: numMultipleChoiceOptions,
+      });
     }
   } catch (error) {
     let message = parseErrorMessage(error);
@@ -1578,7 +1701,7 @@ export const publishForm = async (req: Request, res: Response) => {
       let alreadySentToClient = false;
 
       result3.rows.forEach(async (input, i) => {
-        const result4 = await pool.query(
+        const result = await pool.query(
           `
           insert into author_input_property_values (
             created_input_id,
@@ -1613,6 +1736,29 @@ export const publishForm = async (req: Request, res: Response) => {
           [input.id, req.user.id, newForm.draft_id]
         );
 
+        const result2 = await pool.query(
+          `
+          insert into author_multiple_choice_options (
+            input_id,
+            label,
+            created_at,
+            created_by_id
+          )
+          select
+            $1,
+            a.label,
+            now(),
+            $2
+          from draft_author_multiple_choice_options a
+          inner join draft_author_inputs b
+          on a.input_id = b.id
+          inner join draft_forms c
+          on b.draft_form_id = c.id
+          where c.id = $3
+        `,
+          [input.id, req.user.id, newForm.draft_id]
+        );
+
         insertedPropertyInputs += 1;
 
         if (insertedPropertyInputs === result3.rows.length) {
@@ -1625,7 +1771,6 @@ export const publishForm = async (req: Request, res: Response) => {
       if (insertedPropertyInputs === 0 && !result3.rows.length) {
         res.send(result.rows);
         return;
-      } else {
       }
     } else {
       res.send(result.rows);
