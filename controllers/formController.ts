@@ -567,6 +567,33 @@ export const getPublishedForm = async (req: Request, res: Response) => {
       };
     });
 
+    const result5 = await pool.query(
+      `
+      select a.* from author_linear_scales a
+      inner join author_inputs b
+      on a.input_id = b.id
+      where b.form_id = $1
+    `,
+      [form.id]
+    );
+
+    const linearScales = result5.rows;
+    const linearScalesObj = {};
+
+    linearScales.forEach((linearScale) => {
+      linearScalesObj[linearScale.input_id] = {
+        min: linearScale.min,
+        max: linearScale.max,
+      };
+    });
+
+    inputs = inputs.map((input) => {
+      return {
+        ...input,
+        linearScale: linearScalesObj[input.id] || null,
+      };
+    });
+
     res.send({
       form,
       inputs,
@@ -1295,7 +1322,6 @@ export const addNewInputToDraftForm = async (
     }
 
     if (req.body.inputTypeId === 6 /** Linear Scale */) {
-      console.log(req.body.linearScale);
       const result = await pool.query(
         `
         insert into draft_author_linear_scales (
@@ -1736,28 +1762,57 @@ export const publishForm = async (req: Request, res: Response) => {
           [input.id, req.user.id, newForm.draft_id]
         );
 
-        const result2 = await pool.query(
-          `
-          insert into author_multiple_choice_options (
-            input_id,
-            label,
-            created_at,
-            created_by_id
-          )
-          select
-            $1,
-            a.label,
-            now(),
-            $2
-          from draft_author_multiple_choice_options a
-          inner join draft_author_inputs b
-          on a.input_id = b.id
-          inner join draft_forms c
-          on b.draft_form_id = c.id
-          where c.id = $3
-        `,
-          [input.id, req.user.id, newForm.draft_id]
-        );
+        if (input.input_type_id === 6 /** Linear Scale */ ) {
+          const result = await pool.query(
+            `
+              insert into author_linear_scales (
+                input_id,
+                min,
+                max,
+                created_at,
+                created_by_id
+              )
+              select
+                $1,
+                a.min,
+                a.max,
+                now(),
+                $2
+              from draft_author_linear_scales a
+              inner join draft_author_inputs b
+              on a.input_id = b.id
+              inner join draft_forms c
+              on b.draft_form_id = c.id
+              where c.id = $3
+            `,
+            [input.id, req.user.id, newForm.draft_id]
+          );
+        }
+
+        if (input.input_type_id === 7 /** Multiple choice */) {
+          const result2 = await pool.query(
+            `
+            insert into author_multiple_choice_options (
+              input_id,
+              label,
+              created_at,
+              created_by_id
+            )
+            select
+              $1,
+              a.label,
+              now(),
+              $2
+            from draft_author_multiple_choice_options a
+            inner join draft_author_inputs b
+            on a.input_id = b.id
+            inner join draft_forms c
+            on b.draft_form_id = c.id
+            where c.id = $3
+          `,
+            [input.id, req.user.id, newForm.draft_id]
+          );
+        }
 
         insertedPropertyInputs += 1;
 
