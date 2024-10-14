@@ -466,6 +466,43 @@ export const getDraftForm = async (req: Request, res: Response) => {
       };
     });
 
+    const result4 = await pool.query(
+      `
+      select a.* from author_multiple_choice_options a
+      inner join draft_author_inputs b
+      on a.input_id = b.id
+      where b.draft_form_id = $1
+    `,
+      [form.id]
+    );
+
+    type OptionType = {
+      id: string;
+      input_id: string;
+      label: string;
+      is_deleted: boolean;
+      created_at: string;
+      created_by_id: string;
+    };
+
+    const multipleChoiceOptions = result4.rows;
+    const multipleChoiceOptionsObj: { [key: string]: OptionType[] } = {};
+
+    multipleChoiceOptions.forEach((option) => {
+      if (!multipleChoiceOptionsObj[`${option.input_id}`])
+        multipleChoiceOptionsObj[`${option.input_id}`] = [];
+
+      option.checked = false;
+      multipleChoiceOptionsObj[`${option.input_id}`].push(option);
+    });
+
+    inputs = inputs.map((input) => {
+      return {
+        ...input,
+        options: multipleChoiceOptionsObj[input.id],
+      };
+    });
+
     res.send({
       form,
       inputs,
@@ -1113,6 +1150,13 @@ export const addNewInputToDraftForm = async (
   res: Response
 ): Promise<object | void> => {
   try {
+    if (
+      req.body.options.length !== 0 &&
+      req.body.options.filter((option) => option.label === "").length !== 0
+    ) {
+      throw new Error("Cannot add multiple choice option without a label");
+    }
+
     const result1 = await pool.query(
       `
       with inserted as (
@@ -1163,6 +1207,27 @@ export const addNewInputToDraftForm = async (
 
     let numCustomProperties = 0;
 
+    let numMultipleChoiceOptions = req.body.options.length;
+
+    if (req.body.options) {
+      req.body.options.forEach(async (option, i: number) => {
+        await pool.query(
+          `
+          insert into author_multiple_choice_options (
+            input_id,
+            label,
+            created_by_id
+          ) values (
+            $1, 
+            $2,
+            $3
+          )
+        `,
+          [createdInput.id, option.label, req.user.id]
+        );
+      });
+    }
+
     if (req.body.properties) {
       req.body.properties.forEach(async (property, i: number) => {
         const result = await pool.query(
@@ -1202,12 +1267,20 @@ export const addNewInputToDraftForm = async (
         if (property.value != null && property.value != "") numCustomProperties += 1;
 
         if (i == req.body.properties.length - 1) {
-          res.send({ ...result1.rows[0], num_custom_properties: numCustomProperties });
+          res.send({
+            ...result1.rows[0],
+            num_custom_properties: numCustomProperties,
+            num_multiple_choice_options: numMultipleChoiceOptions,
+          });
           return;
         }
       });
     } else {
-      res.send({ ...result1.rows[0], num_custom_properties: 0 });
+      res.send({
+        ...result1.rows[0],
+        num_custom_properties: 0,
+        num_multiple_choice_options: numMultipleChoiceOptions,
+      });
     }
   } catch (error) {
     let message = parseErrorMessage(error);
@@ -1788,6 +1861,7 @@ export const getRecentFormViews = async (req: Request, res: Response) => {
       inner join users c 
       on b.created_by_id = c.id
       where a.user_id = $1
+      and b.is_deleted = false
       group by a.form_id, b.title, c.picture
       order by max_created_at desc
       limit 10
