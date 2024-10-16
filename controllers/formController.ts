@@ -576,9 +576,13 @@ export const getPublishedForm = async (req: Request, res: Response) => {
 
     const result5 = await pool.query(
       `
-      select a.* from author_linear_scales a
+      select a.*, 
+      c.value existing_value
+      from author_linear_scales a
       inner join author_inputs b
       on a.input_id = b.id
+      left join submitted_linear_scale_values c
+      on b.id = c.input_id
       where b.form_id = $1
     `,
       [form.id]
@@ -590,6 +594,7 @@ export const getPublishedForm = async (req: Request, res: Response) => {
     linearScales.forEach((linearScale) => {
       linearScalesObj[linearScale.input_id] = {
         min: linearScale.min,
+        existingValue: linearScale.existing_value,
         max: linearScale.max,
       };
     });
@@ -1989,11 +1994,26 @@ export const submitForm = async (req: Request, res: Response) => {
     // const submittedInputs = [];
 
     req.body.inputs.forEach(async (input) => {
-      const selectedOptions = input.options.filter((option) => option.checked);
+      if (input.input_type_id === 6 /** Linear Scale */) {
+        await pool.query(
+          `
+          insert into submitted_linear_scale_values (
+            input_id,
+            submission_id,
+            linear_scale_id,
+            value
+          ) values (
+            $1,
+            $2,
+            (select id from author_linear_scales where input_id = $1 limit 1),
+            $3
+          )
+        `,
+          [input.id, submittedForm.id, input.value]
+        );
+      } else if (input.input_type_id === 7 /** Multiple choice */) {
+        const selectedOptions = input.options.filter((option) => option.checked);
 
-      console.log("selectedOptions", selectedOptions);
-
-      if (input.input_type_id === 7 /** Multiple choice */) {
         selectedOptions.forEach(async (option) => {
           await pool.query(
             `
