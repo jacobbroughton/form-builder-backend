@@ -76,7 +76,7 @@ export const getMyForms = async (req: Request, res: Response) => {
 
     if (!result) throw new Error("There was an error fetching published forms");
 
-    res.send(result.rows);
+    return res.send(result.rows);
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -104,18 +104,18 @@ export const getPublicForms = async (req: Request, res: Response) => {
       a.modified_by_id,
       a.modified_at
     from forms a
-    inner join form_submissions b
-    on a.id = b.form_id
-    and b.id = (
-      select id from form_submissions
-      where form_id = b.form_id
-      order by created_at desc
-      limit 1
-    )
+    --inner join form_submissions b
+    --on a.id != b.form_id
+    --and b.id != (
+    --  select id from form_submissions
+    --  where form_id = b.form_id
+    --  order by created_at desc
+    --  limit 1
+    --)
     where is_deleted = false
     and privacy_id = 1 -- public
      and a.created_by_id <> $1
-     and b.created_by_id <> $1
+     --and b.created_by_id <> $1
      order by ${
        req.params.sort === "alphabetical-a-z"
          ? "title asc"
@@ -133,7 +133,7 @@ export const getPublicForms = async (req: Request, res: Response) => {
 
     if (!result) throw new Error("There was an error fetching published forms");
 
-    res.send(result.rows);
+    return res.send(result.rows);
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -190,7 +190,7 @@ export const getAnsweredForms = async (req: Request, res: Response) => {
 
     if (!result) throw new Error("There was an error fetching published forms");
 
-    res.send(result.rows);
+    return res.send(result.rows);
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -213,7 +213,7 @@ export const getDraftForms = async (req: Request, res: Response) => {
 
     if (!result) throw new Error("There was an error fetching draft forms");
 
-    res.send(result.rows);
+    return res.send(result.rows);
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -249,7 +249,7 @@ export const getDraftForm = async (req: Request, res: Response) => {
     if (!result) throw new Error("There was an error getting this form");
 
     if (!result.rows[0]) {
-      res.send([]);
+      return res.send([]);
     }
 
     const form = result.rows[0];
@@ -368,7 +368,7 @@ export const getDraftForm = async (req: Request, res: Response) => {
       };
     });
 
-    res.send({
+    return res.send({
       form,
       inputs,
       propertiesObj,
@@ -428,11 +428,10 @@ export const getPublishedForm = async (req: Request, res: Response) => {
         throw new Error("There was an error checking passkey attempts for this form");
 
       if (!result.rows[0]) {
-        res.status(200).json({
+        return res.status(200).json({
           requiresPasscode: true,
           message: "Must enter passcode to access form",
         });
-        return;
       }
 
       console.log("Found successful passkey attempt", result.rows[0]);
@@ -532,9 +531,17 @@ export const getPublishedForm = async (req: Request, res: Response) => {
 
     const result4 = await pool.query(
       `
-      select a.* from author_multiple_choice_options a
+      select a.*, 
+      (
+        select exists (
+          select 1 from submitted_multiple_choice_options where option_id = a.id
+        )
+      ) checked 
+      from author_multiple_choice_options a
       inner join author_inputs b
       on a.input_id = b.id
+      left join submitted_multiple_choice_options c
+      on b.id = c.input_id
       where b.form_id = $1
     `,
       [form.id]
@@ -556,7 +563,7 @@ export const getPublishedForm = async (req: Request, res: Response) => {
       if (!multipleChoiceOptionsObj[`${option.input_id}`])
         multipleChoiceOptionsObj[`${option.input_id}`] = [];
 
-      option.checked = false;
+      // option.checked = false;
       multipleChoiceOptionsObj[`${option.input_id}`].push(option);
     });
 
@@ -594,47 +601,11 @@ export const getPublishedForm = async (req: Request, res: Response) => {
       };
     });
 
-    res.send({
+    return res.send({
       form,
       inputs,
       propertiesObj,
     });
-  } catch (error) {
-    let message = parseErrorMessage(error);
-
-    return res.status(500).json({ message });
-  }
-};
-
-export const getDefaultInputTypes = async (
-  req: Request,
-  res: Response
-): Promise<object | void> => {
-  try {
-    const result = await pool.query(`
-      select * from input_types  
-    `);
-
-    if (!result) throw new Error("There was an error fetching form item data types");
-    res.send(result.rows);
-  } catch (error) {
-    let message = parseErrorMessage(error);
-
-    return res.status(500).json({ message });
-  }
-};
-
-export const getPrivacyOptions = async (
-  req: Request,
-  res: Response
-): Promise<object | void> => {
-  try {
-    const result = await pool.query(`
-      select * from privacy_options  
-    `);
-
-    if (!result) throw new Error("There was an error fetching privacy options");
-    res.send(result.rows);
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -702,6 +673,9 @@ export const getResponses = async (req: Request, res: Response) => {
       [req.params.formId]
     );
 
+    // select count(*) from form_submissions
+    // where form_id = $1
+
     if (result3.rows.length === 0) {
       return res.status(200).json({
         inputs,
@@ -765,6 +739,42 @@ export const getResponses = async (req: Request, res: Response) => {
   }
 };
 
+export const getDefaultInputTypes = async (
+  req: Request,
+  res: Response
+): Promise<object | void> => {
+  try {
+    const result = await pool.query(`
+      select * from input_types  
+    `);
+
+    if (!result) throw new Error("There was an error fetching form item data types");
+    return res.send(result.rows);
+  } catch (error) {
+    let message = parseErrorMessage(error);
+
+    return res.status(500).json({ message });
+  }
+};
+
+export const getPrivacyOptions = async (
+  req: Request,
+  res: Response
+): Promise<object | void> => {
+  try {
+    const result = await pool.query(`
+      select * from privacy_options  
+    `);
+
+    if (!result) throw new Error("There was an error fetching privacy options");
+    return res.send(result.rows);
+  } catch (error) {
+    let message = parseErrorMessage(error);
+
+    return res.status(500).json({ message });
+  }
+};
+
 export const getDefaultInputProperties = async (
   req: Request,
   res: Response
@@ -785,7 +795,7 @@ export const getDefaultInputProperties = async (
 
     const data = hashify(result.rows, "input_type_id");
 
-    res.send(data);
+    return res.send(data);
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -814,7 +824,7 @@ export const getDefaultInputPropertyOptions = async (
 
     const data = hashify(result.rows, "property_id");
 
-    res.send(data);
+    return res.send(data);
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -862,8 +872,7 @@ export const checkForExistingDraft = async (
     draft.form = result1.rows[0];
 
     if (!draft.form) {
-      res.send(draft);
-      return;
+      return res.send(draft);
     }
 
     const result2 = await pool.query(
@@ -890,7 +899,7 @@ export const checkForExistingDraft = async (
 
     draft.inputs = result2.rows;
 
-    res.send(draft);
+    return res.send(draft);
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -917,7 +926,7 @@ export const getExistingEmptyDraft = async (req: Request, res: Response) => {
 
     if (!result) throw new Error("There was an error getting an existing empty draft");
 
-    res.send(result.rows);
+    return res.send(result.rows);
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -944,7 +953,7 @@ export const getPrevFormSubmissions = async (req: Request, res: Response) => {
     if (!result)
       throw new Error("There was an error searching for previous form submission");
 
-    res.send(result.rows);
+    return res.send(result.rows);
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -971,13 +980,34 @@ export const getInputSubmissions = async (req: Request, res: Response) => {
     if (!result2)
       throw new Error("There was a problem fetching latest submitted input values");
 
-    const latestInputSubmissions = {};
+    const result3 = await pool.query(
+      `
+      select * from submitted_multiple_choice_options
+      where submission_id = $1
+    `,
+      [submissionId]
+    );
+
+    console.log({ submittedMultipleChoice: result3.rows });
+
+    let latestInputSubmissions = null;
+    let multipleChoiceSubmissions = null;
 
     result2.rows.forEach((inputSubmission) => {
+      if (!latestInputSubmissions) latestInputSubmissions = {};
       latestInputSubmissions[inputSubmission.created_input_id] = inputSubmission;
     });
 
-    res.send(latestInputSubmissions);
+    result3.rows.forEach((multipleChoiceSubmission) => {
+      if (!multipleChoiceSubmissions) multipleChoiceSubmissions = {};
+      multipleChoiceSubmissions[multipleChoiceSubmission.input_id] =
+        multipleChoiceSubmission;
+    });
+
+    return res.json({
+      inputSubmissions: latestInputSubmissions,
+      multipleChoiceSubmissions,
+    });
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -1024,7 +1054,7 @@ export const getInput = async (req: Request, res: Response) => {
 
     const properties = result2.rows;
 
-    res.send({ info: inputInfo, properties });
+    return res.send({ info: inputInfo, properties });
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -1049,7 +1079,7 @@ export const getInputType = async (req: Request, res: Response) => {
 
     if (!result) throw new Error("There was an error getting the input type");
 
-    res.send(result.rows[0]);
+    return res.send(result.rows[0]);
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -1071,7 +1101,7 @@ export const renewExistingEmptyDraft = async (req: Request, res: Response) => {
 
     if (!result) throw new Error("There was an error renewing the existing draft");
 
-    res.send(result.rows[0]);
+    return res.send(result.rows[0]);
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -1114,7 +1144,7 @@ export const storeInitialDraft = async (
 
     result.rows[0];
 
-    res.send(result.rows[0]);
+    return res.send(result.rows[0]);
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -1188,7 +1218,7 @@ export const updateDraftForm = async (
 
     if (!result2.rows[0]) throw new Error("form draft was not updated");
 
-    res.send(result2.rows[0]);
+    return res.send(result2.rows[0]);
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -1228,7 +1258,7 @@ export const updatePublishedForm = async (
 
     if (!result2.rows[0]) throw new Error("published form was not updated");
 
-    res.send(result2.rows[0]);
+    return res.send(result2.rows[0]);
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -1379,16 +1409,15 @@ export const addNewInputToDraftForm = async (
         if (property.value != null && property.value != "") numCustomProperties += 1;
 
         if (i == req.body.properties.length - 1) {
-          res.send({
+          return res.send({
             ...result1.rows[0],
             num_custom_properties: numCustomProperties,
             num_multiple_choice_options: numMultipleChoiceOptions,
           });
-          return;
         }
       });
     } else {
-      res.send({
+      return res.send({
         ...result1.rows[0],
         num_custom_properties: 0,
         num_multiple_choice_options: numMultipleChoiceOptions,
@@ -1533,16 +1562,15 @@ export const addNewInputToPublishedForm = async (
         if (property.value != null && property.value != "") numCustomProperties += 1;
 
         if (i == req.body.properties.length - 1) {
-          res.send({
+          return res.send({
             ...result1.rows[0],
             num_custom_properties: numCustomProperties,
             num_multiple_choice_options: numMultipleChoiceOptions,
           });
-          return;
         }
       });
     } else {
-      res.send({
+      return res.send({
         ...result1.rows[0],
         num_custom_properties: 0,
         num_multiple_choice_options: numMultipleChoiceOptions,
@@ -1586,7 +1614,7 @@ export const editInput = async (req: Request, res: Response) => {
 
     if (!result) throw new Error("There was an error updating the input");
 
-    res.send(result.rows[0]);
+    return res.send(result.rows[0]);
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -1608,7 +1636,7 @@ export const changeInputEnabledStatus = async (req: Request, res: Response) => {
 
     if (!result) throw new Error("There was an error deleting this form item from draft");
 
-    res.send(result.rows[0]);
+    return res.send(result.rows[0]);
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -1684,6 +1712,7 @@ export const publishForm = async (req: Request, res: Response) => {
       const result3 = await pool.query(
         `
         insert into author_inputs (
+          draft_input_id,
           input_type_id,
           form_id,
           metadata_question ,
@@ -1699,6 +1728,7 @@ export const publishForm = async (req: Request, res: Response) => {
           modified_at
         )
         select
+          a.id,
           a.input_type_id,
           $1,
           a.metadata_question,
@@ -1762,7 +1792,7 @@ export const publishForm = async (req: Request, res: Response) => {
           [input.id, req.user.id, newForm.draft_id]
         );
 
-        if (input.input_type_id === 6 /** Linear Scale */ ) {
+        if (input.input_type_id === 6 /** Linear Scale */) {
           const result = await pool.query(
             `
               insert into author_linear_scales (
@@ -1809,8 +1839,9 @@ export const publishForm = async (req: Request, res: Response) => {
             inner join draft_forms c
             on b.draft_form_id = c.id
             where c.id = $3
+            and b.id = $4
           `,
-            [input.id, req.user.id, newForm.draft_id]
+            [input.id, req.user.id, newForm.draft_id, input.draft_input_id]
           );
         }
 
@@ -1818,17 +1849,15 @@ export const publishForm = async (req: Request, res: Response) => {
 
         if (insertedPropertyInputs === result3.rows.length) {
           alreadySentToClient = true;
-          res.send(result.rows);
-          return;
+          return res.send(result.rows);
         }
       });
 
       if (insertedPropertyInputs === 0 && !result3.rows.length) {
-        res.send(result.rows);
-        return;
+        return res.send(result.rows);
       }
     } else {
-      res.send(result.rows);
+      return res.send(result.rows);
     }
   } catch (error) {
     let message = parseErrorMessage(error);
@@ -1877,7 +1906,7 @@ export const attemptPasskeyAccess = async (req: Request, res: Response) => {
 
     if (!attemptValid) throw new Error("Passkey did not match");
 
-    res.send(result.rows[0]);
+    return res.send(result.rows[0]);
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -1901,7 +1930,7 @@ export const deleteDraftForm = async (req: Request, res: Response) => {
 
     if (!result) throw new Error("There was an error deleting this draft form");
 
-    res.send(result.rows);
+    return res.send(result.rows);
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -1925,7 +1954,7 @@ export const deletePublishedInput = async (req: Request, res: Response) => {
 
     if (!result) throw new Error("There was an error deleting this draft form");
 
-    res.send(result.rows);
+    return res.send(result.rows);
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -1960,34 +1989,55 @@ export const submitForm = async (req: Request, res: Response) => {
     // const submittedInputs = [];
 
     req.body.inputs.forEach(async (input) => {
-      const result = await pool.query(
-        `
-        insert into submitted_input_values
-        (
-          submission_id,
-          created_input_id, 
-          value, 
-          created_at, 
-          created_by_id
-        )
-        values
-        (
-          $1,
-          $2, 
-          $3, 
-          now(), 
-          $4
-        ) returning *;
-      `,
-        [submittedForm.id, input.id, input.value, req.user.id]
-      );
+      const selectedOptions = input.options.filter((option) => option.checked);
 
-      if (!result) throw new Error("There was an issue inserting the input values");
+      console.log("selectedOptions", selectedOptions);
 
-      // submittedInputs.push(result.rows[0]);
+      if (input.input_type_id === 7 /** Multiple choice */) {
+        selectedOptions.forEach(async (option) => {
+          await pool.query(
+            `
+            insert into submitted_multiple_choice_options (
+              input_id,
+              submission_id,
+              option_id
+            ) values (
+              $1,
+              $2,
+              $3
+            )
+          `,
+            [option.input_id, submittedForm.id, option.id]
+          );
+        });
+      } else {
+        const result = await pool.query(
+          `
+          insert into submitted_input_values
+          (
+            submission_id,
+            created_input_id, 
+            value, 
+            created_at, 
+            created_by_id
+          )
+          values
+          (
+            $1,
+            $2, 
+            $3, 
+            now(), 
+            $4
+          ) returning *;
+        `,
+          [submittedForm.id, input.id, input.value, req.user.id]
+        );
+
+        if (!result) throw new Error("There was an issue inserting the input values");
+      }
     });
 
-    res.send(result.rows[0]);
+    return res.send(result.rows[0]);
   } catch (error) {
     let message = parseErrorMessage(error);
 
@@ -2011,7 +2061,7 @@ export const deletePublishedForm = async (req: Request, res: Response) => {
 
     if (!result) throw new Error("There was an error deleting this published form");
 
-    res.send(result.rows);
+    return res.send(result.rows);
   } catch (error) {
     let message = parseErrorMessage(error);
 
