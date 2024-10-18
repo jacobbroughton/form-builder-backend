@@ -27,12 +27,14 @@ import {
   getInputSubmissions,
   deletePublishedInput,
   getInput,
+  getDraftInput,
   attemptPasskeyAccess,
   getResponses,
   getInputType,
   addFormView,
   getRecentFormViews,
-  editInput
+  editInput,
+  editDraftInput,
 } from "../controllers/formController.js";
 import { validateSession } from "../middleware/validateSession.js";
 import { validateOptionalSession } from "../middleware/validateOptionalSession.js";
@@ -75,6 +77,8 @@ router.get("/get-input-submissions/:submissionId", validateSession, getInputSubm
 
 router.get("/get-input/:inputId", validateSession, getInput);
 
+router.get("/get-draft-input/:inputId", validateSession, getDraftInput);
+
 router.get("/get-input-type/:inputTypeId", validateSession, getInputType);
 
 router.get("/get-recent-form-views", validateSession, getRecentFormViews);
@@ -91,7 +95,9 @@ router.post(
   addNewInputToPublishedForm
 );
 
-router.post("/edit-input", validateSession, editInput)
+router.post("/edit-input", validateSession, editInput);
+
+router.post("/edit-draft-input", validateSession, editDraftInput);
 
 router.post("/publish", validateSession, publishForm);
 

@@ -85,8 +85,6 @@ export const logInGoogleOAuth = async (req: Request, res: Response) => {
       secure: process.env.NODE_ENV === "development" ? false : true,
     });
 
-    console.log("Created session", session);
-
     // redirect back to client
     res.redirect("http://localhost:3000/dashboard");
   } catch (error) {
@@ -98,7 +96,6 @@ export const logInGoogleOAuth = async (req: Request, res: Response) => {
 export const logout = async (req: Request, res: Response) => {
   try {
     let decodedToken = null;
-    console.log("req.user at logout", req.user);
 
     if (req.user && req.user.id) await destorySessionsForUser(req.user.id);
 

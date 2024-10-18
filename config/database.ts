@@ -22,7 +22,7 @@ const dbOptions = {
 const pool = new Pool(dbOptions);
 
 pool.on("error", (err) => {
-  console.log("Encountered error", err);
+  console.error("Encountered error", err);
 });
 
 const sessionStore = new pgSession({
