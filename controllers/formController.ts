@@ -790,11 +790,17 @@ export const getResponses = async (req: Request, res: Response) => {
       mcOptionsObj[subID][inputID].push(option);
     });
 
-    const { rows: linearScaleSubmissionRows } = await pool.query(`
+    const { rows: linearScaleSubmissionRows } = await pool.query(
+      `
       select * from author_linear_scales a
-      left join submitted_linear_scale_values b
-      on a.input_id = b.input_id
-    `);
+      inner join author_inputs b
+      on a.input_id = b.id
+      left join submitted_linear_scale_values c
+      on a.input_id = c.input_id
+      where b.form_id = $1
+    `,
+      [req.params.formId]
+    );
 
     const linearScalesObj = {};
 
@@ -814,13 +820,16 @@ export const getResponses = async (req: Request, res: Response) => {
 
     const inputsBySubID = {};
 
-    console.log("submittedInputRows", submittedInputRows)
-
+    console.log("submittedInputRows", submittedInputRows);
+    console.log("linearScalesObj", linearScalesObj);
+    console.log(new Set(submittedInputRows.map((row) => row.submission_id)));
     submittedInputRows.forEach((response) => {
       const subID = response.submission_id;
 
       response.options = mcOptionsObj[subID][response.created_input_id];
-      response.linearScale = linearScalesObj[subID][response.created_input_id];
+      response.linearScale = linearScalesObj[subID]
+        ? linearScalesObj[subID][response.created_input_id]
+        : {};
 
       if (!inputsBySubID[subID]) inputsBySubID[subID] = [];
       inputsBySubID[subID].push(response);
