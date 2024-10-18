@@ -826,7 +826,9 @@ export const getResponses = async (req: Request, res: Response) => {
     submittedInputRows.forEach((response) => {
       const subID = response.submission_id;
 
-      response.options = mcOptionsObj[subID][response.created_input_id];
+      response.options = mcOptionsObj[subID]
+        ? mcOptionsObj[subID][response.created_input_id]
+        : [];
       response.linearScale = linearScalesObj[subID]
         ? linearScalesObj[subID][response.created_input_id]
         : {};
