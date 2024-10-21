@@ -1,9 +1,76 @@
 import { Request, Response } from "express";
 import { pool } from "../config/database.js";
 import {
-  GenericQuery,
-  InputTypePropertyType,
+  publishLinearScales,
+  SQL_addDraftInputProperty,
+  SQL_addDraftLinearScale,
+  SQL_addDraftMultipleChoiceOption,
+  SQL_addInputToDraftForm,
+  SQL_addInputToPublishedForm,
+  SQL_addNewFormSubmission,
+  SQL_addPasskeyAttempt,
+  SQL_addPublishedInputProperty,
+  SQL_addPublishedMultipleChoiceOption,
+  SQL_deleteDraftForm,
+  SQL_deletePublishedInput,
+  SQL_deletePublishedForm,
+  SQL_getAllActiveDraftForms,
+  SQL_getAllInputProperties,
+  SQL_getAllPrivacyOptions,
+  SQL_getAnsweredForms,
+  SQL_getDefaultInputPropertyOptions,
+  SQL_getDraftFormById,
+  SQL_getDraftFormInputs,
+  SQL_getDraftForms,
+  SQL_getDraftInputPropertyValues,
+  SQL_getDraftLinearScales,
+  SQL_getDraftMultipleChoiceOptions,
+  SQL_getExistingDraftForm,
+  SQL_getExistingFormDraftInputs,
+  SQL_getFormCreatorId,
+  SQL_getInput,
+  SQL_getInputProperties,
+  SQL_getLatestFormSubmission,
+  SQL_getMyForms,
+  SQL_getPasskeyAttempts,
+  SQL_getPropertiesForDraftInput,
+  SQL_getPublicForms,
+  SQL_getPublishedForm,
+  SQL_getPublishedFormByDraftId,
+  SQL_getPublishedFormInputPropertyValues,
+  SQL_getPublishedFormInputs,
+  SQL_getPublishedFormInputsWithAnswers,
+  SQL_getPublishedFormInputsWithoutAnswers,
+  SQL_getPublishedLinearScales,
+  SQL_getPublishedLinearScales2,
+  SQL_getPublishedMultipleChoiceOptions,
+  SQL_getPublishedMultipleChoiceOptions2,
+  SQL_getSingleDraftInput,
+  SQL_getSingleInputType,
+  SQL_getSubmissionsWithUserInfo,
+  SQL_getSubmittedInputs,
+  SQL_getSubmittedInputValues,
+  SQL_getSubmittedMultipleChoiceOptions,
+  SQL_insertNewDraftForm,
+  SQL_publishDraftForm,
+  SQL_publishDraftInputProperties,
+  SQL_publishDraftInputs,
+  SQL_publishMultipleChoiceOptions,
+  SQL_renewDraftForm,
+  SQL_submitInputValue,
+  SQL_submitMultipleChoiceOption,
+  SQL_updateActiveStatusOnInput,
+  SQL_updateDraftForm,
+  SQL_updateDraftInput,
+  SQL_updatePublishedForm,
+  SQL_updatePublishedInput,
+  updatePublishedStatusOfDraftForm,
+  SQL_addFormView,
+  SQL_getRecentFormViews,
+} from "../services/sqlQueries.js";
+import {
   InputTypePropertyOptionType,
+  InputTypePropertyType,
   MultipleChoiceOptionType,
 } from "../types/types";
 import { hashify } from "../utils/hashify.js";
@@ -11,73 +78,12 @@ import { parseErrorMessage } from "../utils/parseErrorMessage.js";
 
 export const getMyForms = async (req: Request, res: Response) => {
   try {
-    // TODO - Impliment
-    const result = await pool.query(
-      `
-      with public as (
-      select * from forms
-      where created_by_id = $1
-      and is_deleted = false
-      --order by modified_at, created_at desc
-    ) ,
-    draft as (
-      select * from draft_forms
-        where created_by_id = $1
-        and is_published = false
-        and is_deleted = false
-        --order by modified_at desc, created_at desc
-    )
-     
-    select * from (
-      select 
-        id, 
-        --draft_id, 
-        title, 
-        description, 
-        passkey, 
-        is_deleted, 
-        --published_by_id,
-        published_at relevant_dt, 
-        created_by_id, 
-        created_at, 
-        modified_by_id, 
-        modified_at,
-        false is_draft
-      from public 
-      union all 
-      select 
-        id, 
-        title, 
-        description, 
-        passkey, 
-        --is_published, 
-        is_deleted, 
-        created_at relevant_dt,
-        created_by_id,
-        created_at, 
-        modified_by_id, 
-        modified_at,
-        true is_draft
-        from draft
-    ) combined
-     order by ${
-       req.params.sort === "alphabetical-a-z"
-         ? "combined.title asc"
-         : req.params.sort === "alphabetical-z-a"
-         ? "combined.title desc"
-         : req.params.sort === "date-new-old"
-         ? "combined.modified_at desc, combined.created_at desc"
-         : req.params.sort === "date-old-new"
-         ? "combined.modified_at asc, combined.created_at asc"
-         : "combined.modified_at asc, combined.created_at asc"
-     }
-    `,
+    const { rows: myPublishedAndDraftForms } = await pool.query(
+      SQL_getMyForms(req.params.sort),
       [req.user.id]
     );
 
-    if (!result) throw new Error("There was an error fetching published forms");
-
-    return res.send(result.rows);
+    return res.status(200).send(myPublishedAndDraftForms);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -89,53 +95,11 @@ export const getMyForms = async (req: Request, res: Response) => {
 export const getPublicForms = async (req: Request, res: Response) => {
   try {
     // TODO - Impliment
-    const result = await pool.query(
-      `
-    select 
-      a.id,
-      a.draft_id,
-      a.title,
-      a.description,
-      a.passkey,
-      a.privacy_id,
-      a.is_deleted,
-      a.published_by_id,
-      a.published_at relevant_dt,
-      a.created_by_id,
-      a.created_at,
-      a.modified_by_id,
-      a.modified_at
-    from forms a
-    --inner join form_submissions b
-    --on a.id != b.form_id
-    --and b.id != (
-    --  select id from form_submissions
-    --  where form_id = b.form_id
-    --  order by created_at desc
-    --  limit 1
-    --)
-    where is_deleted = false
-    and privacy_id = 1 -- public
-     and a.created_by_id <> $1
-     --and b.created_by_id <> $1
-     order by ${
-       req.params.sort === "alphabetical-a-z"
-         ? "title asc"
-         : req.params.sort === "alphabetical-z-a"
-         ? "title desc"
-         : req.params.sort === "date-new-old"
-         ? "modified_at desc, created_at desc"
-         : req.params.sort === "date-old-new"
-         ? "modified_at asc, created_at asc"
-         : "modified_at asc, created_at asc"
-     }
-    `,
-      [req.user.id]
-    );
+    const { rows: publicForms } = await pool.query(SQL_getPublicForms(req.params.sort), [
+      req.user.id,
+    ]);
 
-    if (!result) throw new Error("There was an error fetching published forms");
-
-    return res.send(result.rows);
+    return res.status(200).send(publicForms);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -147,53 +111,12 @@ export const getPublicForms = async (req: Request, res: Response) => {
 export const getAnsweredForms = async (req: Request, res: Response) => {
   try {
     // TODO - Impliment
-    const result = await pool.query(
-      `
-    select 
-      a.id,
-      a.draft_id,
-      a.title,
-      a.description,
-      a.passkey,
-      a.privacy_id,
-      a.is_deleted,
-      a.published_by_id,
-      b.created_at relevant_dt,
-      a.created_by_id,
-      a.created_at,
-      a.modified_by_id,
-      a.modified_at
-    from forms a
-    inner join form_submissions b
-    on a.id = b.form_id
-    and b.id = (
-      select id from form_submissions
-      where form_id = b.form_id
-      order by created_at desc
-      limit 1
-    )
-    where a.is_deleted = false
-     and b.created_by_id = $1
-     and a.created_by_id <> $1
-     order by ${
-       req.params.sort === "alphabetical-a-z"
-         ? "a.title asc"
-         : req.params.sort === "alphabetical-z-a"
-         ? "a.title desc"
-         : req.params.sort === "date-new-old"
-         ? "b.created_at desc"
-         : req.params.sort === "date-old-new"
-         ? "b.created_at asc"
-         : "b.created_at asc"
-     }
-      
-    `,
+    const { rows: answeredForms } = await pool.query(
+      SQL_getAnsweredForms(req.params.sort),
       [req.user.id]
     );
 
-    if (!result) throw new Error("There was an error fetching published forms");
-
-    return res.send(result.rows);
+    return res.status(200).send(answeredForms);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -204,20 +127,11 @@ export const getAnsweredForms = async (req: Request, res: Response) => {
 
 export const getDraftForms = async (req: Request, res: Response) => {
   try {
-    const result = await pool.query(
-      `
-        select * from draft_forms
-        where created_by_id = $1
-        and is_published = false
-        and is_deleted = false
-        order by modified_at desc, created_at desc
-      `,
-      [req.params.userId]
-    );
+    const { rows: myDraftForms } = await pool.query(SQL_getDraftForms, [
+      req.params.userId,
+    ]);
 
-    if (!result) throw new Error("There was an error fetching draft forms");
-
-    return res.send(result.rows);
+    return res.status(200).send(myDraftForms);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -226,100 +140,47 @@ export const getDraftForms = async (req: Request, res: Response) => {
   }
 };
 
-// export const checkIfPasskeyIsNeeded = async (req: Request, res: Response) => {
-//   try {
-//   } catch (error) {
-//     let message = parseErrorMessage(error);
-
-//     return res.status(500).json({ message });
-//   }
-// };
-
 export const getDraftForm = async (req: Request, res: Response) => {
   try {
-    const result = await pool.query(
-      `
-      select a.*, 
-      b.picture created_by_profile_picture,
-      b.username created_by_username 
-      from draft_forms a
-      inner join users b
-      on a.created_by_id = b.id
-      where a.id = $1
-      and a.is_deleted = false
-    `,
-      [req.params.formId]
-    );
+    const {
+      rows: [draftFormById],
+    } = await pool.query(SQL_getDraftFormById, [req.params.formId]);
 
-    if (!result) throw new Error("There was an error getting this form");
-
-    if (!result.rows[0]) {
-      return res.send([]);
+    if (!draftFormById) {
+      return res.status(200).send([]);
     }
 
-    const form = result.rows[0];
+    const { rows: draftFormInputs } = await pool.query(SQL_getDraftFormInputs, [
+      draftFormById.id,
+    ]);
 
-    const result2 = await pool.query(
-      `
-      select a.*, 
-      b.name input_type_name,
-      b.description input_type_description
-      from draft_author_inputs a
-      inner join input_types b
-      on a.input_type_id = b.id
-      where draft_form_id = $1
-      and is_deleted = false
-    `,
+    const { rows: draftInputPropertyValues } = await pool.query(
+      SQL_getDraftInputPropertyValues,
       [form.id]
     );
 
-    if (!result2)
-      throw new Error("Something happened while trying to get input types for this form");
-
-    let inputs = result2.rows;
-
-    const result3 = await pool.query(
-      `
-      select a.*, 
-      b.* from draft_author_input_property_values a
-      inner join input_properties b
-      on a.property_id = b.id
-      inner join draft_author_inputs c 
-      on a.created_input_id = c.id
-      where c.draft_form_id = $1
-    `,
-      [form.id]
-    );
-
-    let properties = result3.rows;
     let propertiesObj: {
       [key: string]: any;
     } = {};
 
-    properties.forEach((property) => {
+    draftInputPropertyValues.forEach((property) => {
       if (!propertiesObj[`${property.created_input_id}`])
         propertiesObj[`${property.created_input_id}`] = {};
       propertiesObj[`${property.created_input_id}`][property.property_key] = property;
     });
 
-    inputs = inputs.map((input) => {
+    let modifiedDraftFormInputs = draftFormInputs.map((input) => {
       return {
         ...input,
         properties: propertiesObj[input.id],
       };
     });
 
-    const result4 = await pool.query(
-      `
-      select a.* from draft_author_multiple_choice_options a
-      inner join draft_author_inputs b
-      on a.input_id = b.id
-      where b.draft_form_id = $1
-    `,
+    const { rows: multipleChoiceOptions } = await pool.query(
+      SQL_getDraftMultipleChoiceOptions,
       [form.id]
     );
 
-    const multipleChoiceOptions = result4.rows;
     const multipleChoiceOptionsObj: { [key: string]: MultipleChoiceOptionType[] } = {};
 
     multipleChoiceOptions.forEach((option) => {
@@ -330,24 +191,15 @@ export const getDraftForm = async (req: Request, res: Response) => {
       multipleChoiceOptionsObj[`${option.input_id}`].push(option);
     });
 
-    inputs = inputs.map((input) => {
+    modifiedDraftFormInputs = modifiedDraftFormInputs.map((input) => {
       return {
         ...input,
         options: multipleChoiceOptionsObj[input.id] || [],
       };
     });
 
-    const result5 = await pool.query(
-      `
-      select a.* from draft_author_linear_scales a
-      inner join draft_author_inputs b
-      on a.input_id = b.id
-      where b.draft_form_id = $1
-    `,
-      [form.id]
-    );
+    const { rows: linearScales } = await pool.query(SQL_getDraftLinearScales, [form.id]);
 
-    const linearScales = result5.rows;
     const linearScalesObj = {};
 
     linearScales.forEach((linearScale) => {
@@ -357,16 +209,16 @@ export const getDraftForm = async (req: Request, res: Response) => {
       };
     });
 
-    inputs = inputs.map((input) => {
+    modifiedDraftFormInputs = modifiedDraftFormInputs.map((input) => {
       return {
         ...input,
         linearScale: linearScalesObj[input.id] || null,
       };
     });
 
-    return res.send({
-      form,
-      inputs,
+    return res.status(200).send({
+      form: draftFormById,
+      inputs: modifiedDraftFormInputs,
       propertiesObj,
     });
   } catch (error) {
@@ -379,61 +231,26 @@ export const getDraftForm = async (req: Request, res: Response) => {
 
 export const getPublishedForm = async (req: Request, res: Response) => {
   try {
-    const result = await pool
-      .query(
-        `
-      select a.*, 
-      b.needs_passkey,
-      (
-        select count(*) from form_submissions
-        where form_id = $1
-      ) num_responses,
-      c.picture created_by_profile_picture,
-      c.username created_by_username
-      from forms a
-      inner join privacy_options b
-      on a.privacy_id = b.id
-      inner join users c
-      on a.created_by_id = c.id
-      where a.id = $1
-      limit 1
-    `,
-        [req.params.formId]
-      )
-      .catch((error) => {
-        console.log("At get form info", error);
-      });
+    const {
+      rows: [publishedForm],
+    } = await pool.query(SQL_getPublishedForm, [req.params.formId]).catch((error) => {
+      console.log("At get form info", error);
+    });
 
-    if (!result)
-      throw new Error("There was an error checking if the form needs a passkey");
+    if (!publishedForm) throw new Error("Published form was not found");
 
-    if (!result.rows) throw new Error("No form was found");
+    const needsPasskey = publishedForm.needs_passkey;
 
-    if (!result.rows[0]) throw new Error("Published form was not found");
-
-    const form = result.rows[0];
-
-    const needsPasskey = result.rows[0].needs_passkey;
-
-    if (form.created_by_id !== req.user?.id && needsPasskey) {
-      const result = await pool
-        .query(
-          `
-        select * from passkey_attempts
-        where form_id = $1
-        and user_id = $2
-        and is_valid = true
-      `,
-          [req.params.formId, req.user.id]
-        )
+    if (publishedForm.created_by_id !== req.user?.id && needsPasskey) {
+      const {
+        rows: [successfulPasskeyAttempt],
+      } = await pool
+        .query(SQL_getPasskeyAttempts, [req.params.formId, req.user.id])
         .catch((error) => {
           console.log("At get passkey attempts", error);
         });
 
-      if (!result)
-        throw new Error("There was an error checking passkey attempts for this form");
-
-      if (!result.rows[0]) {
+      if (!successfulPasskeyAttempt) {
         return res.status(200).json({
           requiresPasscode: true,
           message: "Must enter passcode to access form",
@@ -441,22 +258,15 @@ export const getPublishedForm = async (req: Request, res: Response) => {
       }
     }
 
-    const latestSubmissionResult = await pool
-      .query(
-        `
-      select id from form_submissions 
-      where form_id = $1
-      and created_by_id = $2
-      order by created_at desc
-      limit 1
-    `,
-        [req.params.formId, req.user.id]
-      )
+    const {
+      rows: [latestSubmission],
+    } = await pool
+      .query(SQL_getFormSubmissions, [req.params.formId, req.user.id])
       .catch((error) => {
         console.log("At get form submissions", error);
       });
 
-    const submissionId = latestSubmissionResult.rows[0]?.id;
+    const submissionId = latestSubmission?.id;
 
     let inputs;
 
@@ -465,84 +275,33 @@ export const getPublishedForm = async (req: Request, res: Response) => {
       const paramsArr = [form.id];
       if (submissionId) paramsArr.push(submissionId);
 
-      const result = await pool
-        .query(
-          `
-        select a.*, 
-        b.name input_type_name,
-        b.description input_type_description
-        ${submissionId ? ", c.value existing_answer" : ""}
-        from author_inputs a
-        inner join input_types b
-        on a.input_type_id = b.id
-        left join submitted_input_values c
-        on a.id = c.created_input_id
-        where form_id = $1
-        and is_deleted = false
-        and is_active = true
-      ` +
-            (submissionId ? "and c.submission_id = $2" : "") +
-            `
-        order by a.id asc
-      `,
-          paramsArr
-        )
+      const { rows: publishedFormInputs } = await pool
+        .query(SQL_getPublishedFormInputsWithAnswers(submissionId), paramsArr)
         .catch((error) => {
           console.log("At get inputs", error);
         });
 
-      if (!result)
-        throw new Error(
-          "Something happened while trying to get input types for this form"
-        );
-
-      inputs = result.rows;
+      inputs = publishedFormInputs;
     } else {
       // Get inputs
-      const result = await pool.query(
-        `
-        select a.*, 
-        b.name input_type_name,
-        b.description input_type_description,
-        '' existing_answer
-        from author_inputs a
-        inner join input_types b
-        on a.input_type_id = b.id
-        where form_id = $1
-        and is_deleted = false
-        and is_active = true
-        order by a.id asc
-      `,
+      const { rows: publishedFormInputs } = await pool.query(
+        SQL_getPublishedFormInputsWithoutAnswers,
         [form.id]
       );
 
-      if (!result)
-        throw new Error(
-          "Something happened while trying to get input types for this form"
-        );
-
-      inputs = result.rows;
+      inputs = publishedFormInputs;
     }
 
-    const result3 = await pool.query(
-      `
-      select a.*, 
-      b.* from author_input_property_values a
-      inner join input_properties b
-      on a.property_id = b.id
-      inner join author_inputs c 
-      on a.created_input_id = c.id
-      where c.form_id = $1
-    `,
+    const { rows: publishedFormInputPropertyValues } = await pool.query(
+      SQL_getPublishedFormInputPropertyValues,
       [form.id]
     );
 
-    let properties = result3.rows;
     let propertiesObj: {
       [key: string]: any;
     } = {};
 
-    properties.forEach((property) => {
+    publishedFormInputPropertyValues.forEach((property) => {
       if (!propertiesObj[`${property.created_input_id}`])
         propertiesObj[`${property.created_input_id}`] = {};
       propertiesObj[`${property.created_input_id}`][property.property_key] = property;
@@ -557,43 +316,15 @@ export const getPublishedForm = async (req: Request, res: Response) => {
 
     let paramsArr = [form.id, req.user?.id || null, submissionId || null];
 
-    console.log("user id", req.user.id);
-    const result4 = await pool
-      .query(
-        `
-      select a.*,
-      (
-        case when $2::uuid is not null and $3::uuid is not null then (
-          select exists (
-            select 1 from submitted_multiple_choice_options a2
-            where a2.option_id = a.id
-            and a2.user_id = $2
-          )
-        )
-        else false
-        end
-      ) checked 
-      from author_multiple_choice_options a
-      inner join author_inputs b
-      on a.input_id = b.id
-      left join submitted_multiple_choice_options c
-      on b.id = c.input_id
-      where b.form_id = $1
-    ` +
-          (submissionId ? "and c.submission_id = $3" : "") +
-          `
-      order by a.id asc
-    `,
-        paramsArr
-      )
+    const { rows: publishedMultipleChoiceOptions } = await pool
+      .query(SQL_getPublishedMultipleChoiceOptions(submissionId), paramsArr)
       .catch((error) => {
         console.log("At multiple choice", error);
       });
 
-    const multipleChoiceOptions = result4.rows;
     const multipleChoiceOptionsObj: { [key: string]: MultipleChoiceOptionType[] } = {};
 
-    multipleChoiceOptions.forEach((option) => {
+    publishedMultipleChoiceOptions.forEach((option) => {
       if (!multipleChoiceOptionsObj[`${option.input_id}`])
         multipleChoiceOptionsObj[`${option.input_id}`] = [];
 
@@ -608,31 +339,18 @@ export const getPublishedForm = async (req: Request, res: Response) => {
       };
     });
 
-    paramsArr = [form.id];
+    paramsArr = [publishedForm.id];
     if (submissionId) paramsArr.push(submissionId);
 
-    const result5 = await pool
-      .query(
-        `
-      select a.*
-      ${submissionId ? ", c.value existing_value" : ""}
-      from author_linear_scales a
-      inner join author_inputs b
-      on a.input_id = b.id
-      left join submitted_linear_scale_values c
-      on b.id = c.input_id
-      where b.form_id = $1
-    ` + (submissionId ? "and c.submission_id = $2" : ""),
-        paramsArr
-      )
+    const { rows: publishedLinearScales } = await pool
+      .query(SQL_getPublishedLinearScales(submissionId), paramsArr)
       .catch((error) => {
         console.log("At linear scale", error);
       });
 
-    const linearScales = result5.rows;
     const linearScalesObj = {};
 
-    linearScales.forEach((linearScale) => {
+    publishedLinearScales.forEach((linearScale) => {
       linearScalesObj[linearScale.input_id] = {
         min: linearScale.min,
         existingValue: linearScale.existing_value,
@@ -647,8 +365,8 @@ export const getPublishedForm = async (req: Request, res: Response) => {
       };
     });
 
-    return res.send({
-      form,
+    return res.status(200).send({
+      form: publishedForm,
       inputs,
     });
   } catch (error) {
@@ -662,24 +380,17 @@ export const getPublishedForm = async (req: Request, res: Response) => {
 export const getResponses = async (req: Request, res: Response) => {
   try {
     // make sure user is admin of form
-    const result = await pool
-      .query(
-        `
-      select created_by_id from forms
-      where id = $1
-      limit 1  
-    `,
-        [req.params.formId]
-      )
-      .catch((error) => {
-        console.log("At get form info", error);
-      });
+    const {
+      rows: [userThatCreatedForm],
+    } = await pool.query(SQL_getFormCreatorId, [req.params.formId]).catch((error) => {
+      console.log("At get form info", error);
+    });
 
-    if (result.rows.length === 0) {
+    if (!userThatCreatedForm && userThatCreatedForm !== 0) {
       return res.status(404).json({ message: "Form not found" });
     }
 
-    const created_by_id = result.rows[0].created_by_id;
+    const { created_by_id } = userThatCreatedForm;
 
     if (created_by_id !== req.user.id) {
       return res
@@ -688,54 +399,28 @@ export const getResponses = async (req: Request, res: Response) => {
     }
 
     // get inputs (active and inactive)
-    const result2 = await pool
-      .query(
-        `
-      select * from author_inputs 
-      where form_id = $1
-      order by id asc
-    `,
-        [req.params.formId]
-      )
+    const { rows: inputsForForm } = await pool
+      .query(SQL_getPublishedFormInputs, [req.params.formId])
       .catch((error) => {
         console.log("At get author inputs", error);
       });
 
-    if (result2.rows.length === 0) {
+    if (inputsForForm.length === 0) {
       return res
         .status(200)
         .json({ message: "No inputs to respond to were found for this form" });
     }
 
-    const inputs = result2.rows;
-
     // get submitted inputs
     const { rows: submittedInputRows } = await pool
-      .query(
-        `
-      select a.*, 
-      b.form_id, 
-      b.metadata_question, 
-      b.metadata_description,
-      b.is_required,
-      c.name input_type_name 
-      from submitted_input_values a
-      inner join author_inputs b
-      on a.created_input_id = b.id
-      inner join input_types c
-      on b.input_type_id = c.id
-      where form_id = $1
-      order by a.created_input_id asc
-    `,
-        [req.params.formId]
-      )
+      .query(SQL_getSubmittedInputs, [req.params.formId])
       .catch((error) => {
         console.log("At get submitted inputs", error);
       });
 
     if (submittedInputRows.length === 0) {
       return res.status(200).json({
-        inputs,
+        inputs: inputsForForm,
         responses: [],
         message: "No submitted inputs were found for this form",
       });
@@ -743,36 +428,7 @@ export const getResponses = async (req: Request, res: Response) => {
 
     // get multiple choice options
     const { rows: mcOptionRows } = await pool
-      .query(
-        `
-      select a.id,
-      a.input_id,
-      a.label,
-      (
-        select exists (
-          select 1 from submitted_multiple_choice_options a2
-          where a2.option_id = a.id
-          and a2.input_id = a.input_id
-          and a2.submission_id = c.submission_id
-          and a2.user_id = c.user_id
-        )
-      ) checked ,
-       a.is_deleted,
-      c.submission_id,
-      c.user_id submitted_by_id
-      from author_multiple_choice_options a
-      inner join author_inputs b
-      on a.input_id = b.id
-      left join submitted_multiple_choice_options c
-      on c.input_id = a.input_id  -- Ensure options are correctly tied to inputs
-      and c.submission_id in (
-        select submission_id from form_submissions where form_id = b.form_id
-      )
-      where b.form_id = $1
-      order by id asc
-    `,
-        [req.params.formId]
-      )
+      .query(SQL_getPublishedMultipleChoiceOptions2, [req.params.formId])
       .catch((error) => {
         console.log("At get multiple choice options", error);
       });
@@ -791,14 +447,7 @@ export const getResponses = async (req: Request, res: Response) => {
     });
 
     const { rows: linearScaleSubmissionRows } = await pool.query(
-      `
-      select * from author_linear_scales a
-      inner join author_inputs b
-      on a.input_id = b.id
-      left join submitted_linear_scale_values c
-      on a.input_id = c.input_id
-      where b.form_id = $1
-    `,
+      SQL_getPublishedLinearScales2,
       [req.params.formId]
     );
 
@@ -820,9 +469,6 @@ export const getResponses = async (req: Request, res: Response) => {
 
     const inputsBySubID = {};
 
-    console.log("submittedInputRows", submittedInputRows);
-    console.log("linearScalesObj", linearScalesObj);
-    console.log(new Set(submittedInputRows.map((row) => row.submission_id)));
     submittedInputRows.forEach((response) => {
       const subID = response.submission_id;
 
@@ -839,15 +485,7 @@ export const getResponses = async (req: Request, res: Response) => {
 
     // get submission with user info
     const { rows: submissionsList } = await pool
-      .query(
-        `
-      select a.*, b.email, b.username from form_submissions a
-      inner join users b
-      on a.created_by_id = b.id
-      where form_id = $1
-    `,
-        [req.params.formId]
-      )
+      .query(SQL_getSubmissionsWithUserInfo, [req.params.formId])
       .catch((error) => {
         console.log("At get form submissions", error);
       });
@@ -874,12 +512,12 @@ export const getDefaultInputTypes = async (
   res: Response
 ): Promise<object | void> => {
   try {
-    const result = await pool.query(`
+    const { rows: defaultInputTypes } = await pool.query(`
       select * from input_types  
     `);
 
-    if (!result) throw new Error("There was an error fetching form item data types");
-    return res.send(result.rows);
+    if (!defaultInputTypes) throw new Error("No default input types were found");
+    return res.status(200).send(defaultInputTypes);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -893,12 +531,9 @@ export const getPrivacyOptions = async (
   res: Response
 ): Promise<object | void> => {
   try {
-    const result = await pool.query(`
-      select * from privacy_options  
-    `);
+    const { rows: privacyOptions } = await pool.query(SQL_getAllPrivacyOptions);
 
-    if (!result) throw new Error("There was an error fetching privacy options");
-    return res.send(result.rows);
+    return res.status(200).send(privacyOptions);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -912,22 +547,26 @@ export const getDefaultInputProperties = async (
   res: Response
 ): Promise<object | void> => {
   try {
-    const result = await pool.query(`
-      select * from input_properties 
-    `);
+    const { rows: defaultInputProperties } = await pool.query(SQL_getAllInputProperties);
 
-    if (!result) throw new Error("There was an error fetching form item type properties");
+    if (!defaultInputProperties.length)
+      throw new Error("There was an error fetching form item type properties");
 
-    result.rows = result.rows.map((row: InputTypePropertyType) => ({
-      ...row,
-      ...(row.property_type !== "radio" && {
-        value: "",
-      }),
-    }));
+    const modifiedDefaultInputProperties = defaultInputProperties.map(
+      (row: InputTypePropertyType) => ({
+        ...row,
+        ...(row.property_type !== "radio" && {
+          value: "",
+        }),
+      })
+    );
 
-    const data = hashify(result.rows, "input_type_id");
+    const hashifiedDefaultInputProperties = hashify(
+      modifiedDefaultInputProperties,
+      "input_type_id"
+    );
 
-    return res.send(data);
+    return res.status(200).send(hashifiedDefaultInputProperties);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -941,25 +580,26 @@ export const getDefaultInputPropertyOptions = async (
   res: Response
 ): Promise<object | void> => {
   try {
-    const result = await pool.query(`
-      select a.*,
-      b.input_type_id input_type_id from input_property_options a
-      inner join input_properties b
-      on b.id = a.property_id
-    `);
+    const { rows: defaultInputPropertyOptions } = await pool.query(
+      SQL_getDefaultInputPropertyOptions
+    );
 
-    if (!result) throw new Error("There was an error fetching form item type properties");
+    if (!defaultInputPropertyOptions)
+      throw new Error("There was an error fetching form item type properties");
 
-    result.rows = result.rows.map(
+    let modifiedDefaultInputPropertyOptions = defaultInputPropertyOptions.map(
       (row: InputTypePropertyOptionType): InputTypePropertyOptionType => ({
         ...row,
         checked: false,
       })
     );
 
-    const data = hashify(result.rows, "property_id");
+    const hashifiedDefaultInputPropertyOptions = hashify(
+      modifiedDefaultInputPropertyOptions,
+      "property_id"
+    );
 
-    return res.send(data);
+    return res.status(200).send(hashifiedDefaultInputPropertyOptions);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -969,7 +609,7 @@ export const getDefaultInputPropertyOptions = async (
 };
 
 export const checkForExistingDraft = async (
-  req: Request<GenericQuery>,
+  req: Request,
   res: Response
 ): Promise<object | void> => {
   try {
@@ -993,49 +633,24 @@ export const checkForExistingDraft = async (
       inputs: [],
     };
 
-    const result1 = await pool.query(
-      `
-        select * from draft_forms
-        where created_by_id = $1
-        and is_deleted = false
-        and is_published = false
-      `,
-      [userId]
-    );
+    const { rows: existingFormDrafts } = await pool.query(SQL_getAllActiveDraftForms, [
+      userId,
+    ]);
 
-    if (!result1) throw new Error("There was an error fetching existing form draft");
-
-    draft.form = result1.rows[0];
+    draft.form = existingFormDrafts[0];
 
     if (!draft.form) {
-      return res.send(draft);
+      return res.status(200).send(draft);
     }
 
-    const result2 = await pool.query(
-      `
-      select a.*, 
-      b.name input_type_name, 
-      b.description input_type_description,
-      (
-        select cast(count(*) as integer) from draft_author_input_property_values
-        where created_input_id = a.id\
-        and value is not null and value != ''
-      ) num_custom_properties
-      from draft_author_inputs a
-      inner join input_types b
-      on a.input_type_id = b.id
-      where a.draft_form_id = $1
-      order by a.id asc
-    `,
+    const { rows: existingFormDraftInputs } = await pool.query(
+      SQL_getExistingFormDraftInputs,
       [draft.form.id]
     );
 
-    if (!result2)
-      throw new Error("There was an error fetching inputs for the existing form draft");
+    draft.inputs = existingFormDraftInputs;
 
-    draft.inputs = result2.rows;
-
-    return res.send(draft);
+    return res.status(200).send(draft);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -1046,24 +661,11 @@ export const checkForExistingDraft = async (
 
 export const getExistingEmptyDraft = async (req: Request, res: Response) => {
   try {
-    const result = await pool.query(
-      `
-      select * from draft_forms
-      where created_by_id = $1
-      and description = ''
-      and title = 'Untitled'
-      and modified_at is null
-      and is_published = false
-      and is_deleted = false
-      order by created_at desc
-      limit 1
-    `,
-      [req.user.id]
-    );
+    const { rows: existingDraft } = await pool.query(SQL_getExistingDraftForm, [
+      req.user.id,
+    ]);
 
-    if (!result) throw new Error("There was an error getting an existing empty draft");
-
-    return res.send(result.rows);
+    return res.status(200).send(existingDraft);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -1078,20 +680,12 @@ export const getPrevFormSubmissions = async (req: Request, res: Response) => {
 
     if (!formId) throw new Error("Form ID not provided");
 
-    const result = await pool.query(
-      `
-      select * from form_submissions
-      where form_id = $1
-      and created_by_id = $2
-      order by created_at desc
-    `,
-      [formId, req.user.id]
-    );
+    const { rows: formSubmissions } = await pool.query(SQL_getLatestFormSubmission, [
+      formId,
+      req.user.id,
+    ]);
 
-    if (!result)
-      throw new Error("There was an error searching for previous form submission");
-
-    return res.send(result.rows);
+    return res.status(200).send(formSubmissions);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -1106,36 +700,25 @@ export const getInputSubmissions = async (req: Request, res: Response) => {
 
     if (!submissionId) throw new Error("No submission ID was provided in controller");
 
-    const result2 = await pool.query(
-      `
-      select * from submitted_input_values
-      where created_by_id = $1
-      and submission_id = $2
-      order by created_at desc
-    `,
-      [req.user.id, submissionId]
-    );
+    const { rows: submittedInputValues } = await pool.query(SQL_getSubmittedInputValues, [
+      req.user.id,
+      submissionId,
+    ]);
 
-    if (!result2)
-      throw new Error("There was a problem fetching latest submitted input values");
-
-    const result3 = await pool.query(
-      `
-      select * from submitted_multiple_choice_options
-      where submission_id = $1
-    `,
+    const { rows: submittedMultipleChoiceOptions } = await pool.query(
+      SQL_getSubmittedMultipleChoiceOptions,
       [submissionId]
     );
 
     let latestInputSubmissions = null;
     let multipleChoiceSubmissions = null;
 
-    result2.rows.forEach((inputSubmission) => {
+    submittedInputValues.forEach((inputSubmission) => {
       if (!latestInputSubmissions) latestInputSubmissions = {};
       latestInputSubmissions[inputSubmission.created_input_id] = inputSubmission;
     });
 
-    result3.rows.forEach((multipleChoiceSubmission) => {
+    submittedMultipleChoiceOptions.forEach((multipleChoiceSubmission) => {
       if (!multipleChoiceSubmissions) multipleChoiceSubmissions = {};
       multipleChoiceSubmissions[multipleChoiceSubmission.input_id] =
         multipleChoiceSubmission;
@@ -1159,38 +742,20 @@ export const getInput = async (req: Request, res: Response) => {
 
     if (!inputId) throw new Error("No input id was given");
 
-    const result = await pool.query(
-      `
-      select * from author_inputs
-      where id = $1
-      and created_by_id = $2
-      limit 1
-    `,
-      [inputId, req.user.id]
-    );
+    const { rows: publishedAuthorInputs } = await pool.query(SQL_getInput, [
+      inputId,
+      req.user.id,
+    ]);
 
-    if (!result.rows[0]) throw new Error("No input found");
+    if (publishedAuthorInputs.length === 0) throw new Error("No input found");
 
-    const inputInfo = result.rows[0];
+    const inputInfo = publishedAuthorInputs[0];
 
-    const result2 = await pool.query(
-      `
-      select a.*, 
-      b.* from author_input_property_values a
-      inner join input_properties b
-      on a.property_id = b.id
-      inner join author_inputs c 
-      on a.created_input_id = c.id
-      where c.id = $1
-    `,
-      [inputInfo.id]
-    );
+    const { rows: inputProperties } = await pool.query(SQL_getInputProperties, [
+      inputInfo.id,
+    ]);
 
-    if (!result2) throw new Error("There was an error getting the input properties");
-
-    const properties = result2.rows;
-
-    return res.send({ info: inputInfo, properties });
+    return res.status(200).send({ info: inputInfo, properties: inputProperties });
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -1205,38 +770,23 @@ export const getDraftInput = async (req: Request, res: Response) => {
 
     if (!inputId) throw new Error("No draft input id was given");
 
-    const result = await pool.query(
-      `
-      select * from draft_author_inputs
-      where id = $1
-      and created_by_id = $2
-      limit 1
-    `,
-      [inputId, req.user.id]
-    );
+    const { rows: draftAuthorInputs } = await pool.query(SQL_getSingleDraftInput, [
+      inputId,
+      req.user.id,
+    ]);
 
-    if (!result.rows[0]) throw new Error("No input found");
+    if (!draftAuthorInputs[0]) throw new Error("No input found");
 
-    const inputInfo = result.rows[0];
+    const inputInfo = draftAuthorInputs[0];
 
-    const result2 = await pool.query(
-      `
-      select a.*, 
-      b.* from draft_author_input_property_values a
-      inner join input_properties b
-      on a.property_id = b.id
-      inner join draft_author_inputs c 
-      on a.created_input_id = c.id
-      where c.id = $1
-    `,
+    const { rows: draftAuthorInputPropertyValues } = await pool.query(
+      SQL_getPropertiesForDraftInput,
       [inputInfo.id]
     );
 
-    if (!result2) throw new Error("There was an error getting the input properties");
+    const properties = draftAuthorInputPropertyValues;
 
-    const properties = result2.rows;
-
-    return res.send({ info: inputInfo, properties });
+    return res.status(200).send({ info: inputInfo, properties });
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -1251,18 +801,13 @@ export const getInputType = async (req: Request, res: Response) => {
 
     if (!inputTypeId) throw new Error("No input type id was given");
 
-    const result = await pool.query(
-      `
-      select * from input_types
-      where id = $1
-      limit 1
-    `,
-      [inputTypeId]
-    );
+    const {
+      rows: [inputType],
+    } = await pool.query(SQL_getSingleInputType, [inputTypeId]);
 
-    if (!result) throw new Error("There was an error getting the input type");
+    if (!inputType) throw new Error("There was an error getting the input type");
 
-    return res.send(result.rows[0]);
+    return res.status(200).send(inputType);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -1273,19 +818,14 @@ export const getInputType = async (req: Request, res: Response) => {
 
 export const renewExistingEmptyDraft = async (req: Request, res: Response) => {
   try {
-    const result = await pool.query(
-      `
-      update draft_forms
-      set created_at = now()
-      where id = $1
-      returning *
-    `,
-      [req.body.draftFormId]
-    );
+    const {
+      rows: [updatedExistingEmptyDraft],
+    } = await pool.query(SQL_renewDraftForm, [req.body.draftFormId]);
 
-    if (!result) throw new Error("There was an error renewing the existing draft");
+    if (!updatedExistingEmptyDraft)
+      throw new Error("There was an error renewing the existing draft");
 
-    return res.send(result.rows[0]);
+    return res.status(200).send(updatedExistingEmptyDraft);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -1299,37 +839,13 @@ export const storeInitialDraft = async (
   res: Response
 ): Promise<object | void> => {
   try {
-    const result = await pool.query(
-      `
-        insert into draft_forms (
-          title,
-          description,
-          passkey,
-          is_published,
-          created_by_id,
-          created_at,
-          modified_by_id,
-          modified_at
-        ) values (
-          'Untitled',
-          '',
-          '',
-          false,
-          $1,
-          now(),
-          null,
-          null
-        )
-        returning *
-      `,
-      [req.user.id]
-    );
+    const {
+      rows: [newDraftForm],
+    } = await pool.query(SQL_insertNewDraftForm, [req.user.id]);
 
-    if (!result) throw new Error("There was an error adding an initial form draft");
+    if (!newDraftForm) throw new Error("No initially draft form was returned");
 
-    result.rows[0];
-
-    return res.send(result.rows[0]);
+    return res.status(200).send(newDraftForm);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -1375,36 +891,21 @@ export const updateDraftForm = async (
   res: Response
 ): Promise<object | void> => {
   try {
-    const result2 = await pool.query(
-      `
-      update draft_forms
-      set 
-        title = $1,
-        description = $2,
-        passkey = $3,
-        can_resubmit = $4,
-        modified_by_id = $5,
-        privacy_id = $6,
-        modified_at = now()
-      where id = $7
-      returning *
-    `,
-      [
-        req.body.title,
-        req.body.description,
-        req.body.privacyPasskey,
-        req.body.canResubmit,
-        req.user.id,
-        req.body.privacyId,
-        req.body.formId,
-      ]
-    );
+    const {
+      rows: [updatedDraftForm],
+    } = await pool.query(SQL_updateDraftForm, [
+      req.body.title,
+      req.body.description,
+      req.body.privacyPasskey,
+      req.body.canResubmit,
+      req.user.id,
+      req.body.privacyId,
+      req.body.formId,
+    ]);
 
-    if (!result2) throw new Error("There was an error updating the form draft");
+    if (!updatedDraftForm) throw new Error("form draft was not updated");
 
-    if (!result2.rows[0]) throw new Error("form draft was not updated");
-
-    return res.send(result2.rows[0]);
+    return res.status(200).send(updatedDraftForm);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -1418,34 +919,20 @@ export const updatePublishedForm = async (
   res: Response
 ): Promise<object | void> => {
   try {
-    const result2 = await pool.query(
-      `
-      update forms
-      set 
-        title = $1,
-        description = $2,
-        passkey = $3,
-        privacy_id = $4,
-        modified_by_id = $5,
-        modified_at = now()
-      where id = $6
-      returning *
-    `,
-      [
-        req.body.title,
-        req.body.description,
-        req.body.privacyPasskey,
-        req.body.privacyId,
-        req.user.id,
-        req.body.formId,
-      ]
-    );
+    const {
+      rows: [updatedPublishedForm],
+    } = await pool.query(SQL_updatePublishedForm, [
+      req.body.title,
+      req.body.description,
+      req.body.privacyPasskey,
+      req.body.privacyId,
+      req.user.id,
+      req.body.formId,
+    ]);
 
-    if (!result2) throw new Error("There was an error updating the published");
+    if (!updatedPublishedForm) throw new Error("published form was not updated");
 
-    if (!result2.rows[0]) throw new Error("published form was not updated");
-
-    return res.send(result2.rows[0]);
+    return res.status(200).send(updatedPublishedForm);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -1467,53 +954,18 @@ export const addNewInputToDraftForm = async (
       throw new Error("Cannot add multiple choice option without a label");
     }
 
-    const result1 = await pool.query(
-      `
-      with inserted as (
-        insert into draft_author_inputs
-         (
-          input_type_id,
-          draft_form_id,
-          metadata_question,
-          metadata_description,
-          is_active,
-          is_required,
-          created_at,
-          created_by_id,
-          modified_by_id,
-          modified_at
-        ) values (
-          $1,
-          $2,
-          $3,
-          $4,
-          true,
-          $5,
-          now(),
-          $6,
-          null,
-          null
-        ) returning * 
-      )
-      select a.*,
-      b.name input_type_name
-      from inserted a
-      join input_types b
-      on a.input_type_id = b.id
-    `,
-      [
-        req.body.inputTypeId,
-        req.body.formId,
-        req.body.inputMetadataQuestion,
-        req.body.inputMetadataDescription,
-        req.body.isRequired,
-        req.user.id,
-      ]
-    );
+    const {
+      rows: [createdDraftInput],
+    } = await pool.query(SQL_addInputToDraftForm, [
+      req.body.inputTypeId,
+      req.body.formId,
+      req.body.inputMetadataQuestion,
+      req.body.inputMetadataDescription,
+      req.body.isRequired,
+      req.user.id,
+    ]);
 
-    if (!result1) throw new Error("There was an error adding a user created input");
-
-    const createdInput = result1.rows[0];
+    if (!createdDraftInput) throw new Error("No input was added to draft form");
 
     let numCustomProperties = 0;
     let numMultipleChoiceOptions = 0;
@@ -1522,91 +974,46 @@ export const addNewInputToDraftForm = async (
       numMultipleChoiceOptions = req.body.options.length;
 
       req.body.options.forEach(async (option, i: number) => {
-        await pool.query(
-          `
-          insert into draft_author_multiple_choice_options (
-            input_id,
-            label,
-            created_by_id
-          ) values (
-            $1, 
-            $2,
-            $3
-          )
-        `,
-          [createdInput.id, option.label, req.user.id]
-        );
+        await pool.query(SQL_addDraftMultipleChoiceOption, [
+          createdDraftInput.id,
+          option.label,
+          req.user.id,
+        ]);
       });
     }
 
     if (req.body.inputTypeId === 6 /** Linear Scale */) {
-      const result = await pool.query(
-        `
-        insert into draft_author_linear_scales (
-          input_id,
-          min,
-          max,
-          created_by_id
-        ) values (
-          $1,
-          $2,
-          $3,
-          $4
-        )
-      `,
-        [createdInput.id, req.body.linearScale.min, req.body.linearScale.max, req.user.id]
-      );
+      await pool.query(SQL_addDraftLinearScale, [
+        createdDraftInput.id,
+        req.body.linearScale.min,
+        req.body.linearScale.max,
+        req.user.id,
+      ]);
     }
 
     if (req.body.properties) {
       req.body.properties.forEach(async (property, i: number) => {
-        const result = await pool.query(
-          `
-          insert into draft_author_input_property_values
-          (
-            created_input_id, 
-            property_id, 
-            input_type_id, 
-            value,
-            created_at,
-            created_by_id, 
-            modified_by_id, 
-            modified_at
-          ) values (
-            $1,
-            $2,
-            $3,
-            $4,
-            now(),
-            $5,
-            null,
-            null
-          ) 
-        `,
-          [
-            createdInput.id,
-            property.id,
-            createdInput.input_type_id,
-            property.value,
-            req.user.id,
-          ]
-        );
-
-        if (!result) throw new Error("There was an error adding this property value");
+        await pool.query(SQL_addDraftInputProperty, [
+          createdDraftInput.id,
+          property.id,
+          createdDraftInput.input_type_id,
+          property.value,
+          req.user.id,
+        ]);
 
         if (property.value != null && property.value != "") numCustomProperties += 1;
 
         if (i == req.body.properties.length - 1) {
-          return res.send({
-            ...result1.rows[0],
+          return res.status(200).send({
+            ...createdDraftInput,
             num_custom_properties: numCustomProperties,
             num_multiple_choice_options: numMultipleChoiceOptions,
           });
         }
       });
     } else {
-      return res.send({
-        ...result1.rows[0],
+      return res.status(200).send({
+        ...createdDraftInput,
         num_custom_properties: 0,
         num_multiple_choice_options: numMultipleChoiceOptions,
       });
@@ -1632,57 +1039,16 @@ export const addNewInputToPublishedForm = async (
       throw new Error("Cannot add multiple choice option without a label");
     }
 
-    const result1 = await pool.query(
-      `
-      with inserted as (
-        insert into author_inputs
-        (
-          input_type_id,
-          form_id,
-          metadata_question,
-          metadata_description,
-          is_active,
-          is_required,
-          published_at,
-          published_by_id,
-          created_at,
-          created_by_id,
-          modified_by_id,
-          modified_at
-        ) values (
-          $1,
-          $2,
-          $3,
-          $4,
-          true,
-          $5,
-          now(),
-          $6,
-          now(),
-          $6,
-          null,
-          null
-        ) returning * 
-      )
-      select a.*,
-      b.name input_type_name
-      from inserted a
-      join input_types b
-      on a.input_type_id = b.id
-    `,
-      [
-        req.body.inputTypeId,
-        req.body.formId,
-        req.body.inputMetadataQuestion,
-        req.body.inputMetadataDescription,
-        req.body.isRequired,
-        req.user.id,
-      ]
-    );
-
-    if (!result1) throw new Error("There was an error adding a user created input");
-
-    const createdInput = result1.rows[0];
+    const {
+      rows: [createdPublishedInput],
+    } = await pool.query(SQL_addInputToPublishedForm, [
+      req.body.inputTypeId,
+      req.body.formId,
+      req.body.inputMetadataQuestion,
+      req.body.inputMetadataDescription,
+      req.body.isRequired,
+      req.user.id,
+    ]);
 
     let numCustomProperties = 0;
     let numMultipleChoiceOptions = 0;
@@ -1691,76 +1057,37 @@ export const addNewInputToPublishedForm = async (
       numMultipleChoiceOptions = req.body.options.length;
 
       req.body.options.forEach(async (option, i: number) => {
-        await pool.query(
-          `
-          insert into author_multiple_choice_options (
-            input_id,
-            label,
-            created_by_id
-          ) values (
-            $1, 
-            $2,
-            $3
-          )
-        `,
-          [createdInput.id, option.label, req.user.id]
-        );
+        await pool.query(SQL_addPublishedMultipleChoiceOption, [
+          createdPublishedInput.id,
+          option.label,
+          req.user.id,
+        ]);
       });
     }
 
     if (req.body.properties) {
       req.body.properties.forEach(async (property, i: number) => {
-        const result = await pool.query(
-          `
-          insert into author_input_property_values
-          (
-            created_input_id, 
-            property_id, 
-            input_type_id, 
-            value,
-            published_at,
-            published_by_id,
-            created_at,
-            created_by_id, 
-            modified_by_id, 
-            modified_at
-          ) values (
-            $1,
-            $2,
-            $3,
-            $4,
-            now(),
-            $5,
-            now(),
-            $5,
-            null,
-            null
-          ) 
-        `,
-          [
-            createdInput.id,
-            property.id,
-            createdInput.input_type_id,
-            property.value,
-            req.user.id,
-          ]
-        );
-
-        if (!result) throw new Error("There was an error adding this property value");
+        await pool.query(SQL_addPublishedInputProperty, [
+          createdPublishedInput.id,
+          property.id,
+          createdPublishedInput.input_type_id,
+          property.value,
+          req.user.id,
+        ]);
 
         if (property.value != null && property.value != "") numCustomProperties += 1;
 
         if (i == req.body.properties.length - 1) {
-          return res.send({
-            ...result1.rows[0],
+          return res.status(200).send({
+            ...createdPublishedInput,
             num_custom_properties: numCustomProperties,
             num_multiple_choice_options: numMultipleChoiceOptions,
           });
         }
       });
     } else {
-      return res.send({
-        ...result1.rows[0],
+      return res.status(200).send({
+        ...createdPublishedInput,
         num_custom_properties: 0,
         num_multiple_choice_options: numMultipleChoiceOptions,
       });
@@ -1778,35 +1105,25 @@ export const editInput = async (req: Request, res: Response) => {
     const input = req.body;
 
     if (!input)
-      throw new Error(
-        "There was no input included in request body while trying to delete"
-      );
+      throw new Error("There was no input included in request body while trying to edit");
 
-    const result = await pool.query(
-      `
-      update author_inputs
-      set metadata_question = $1,
-      metadata_description = $2,
-      is_active = $3,
-      is_required = $4,
-      modified_by_id = $5,
-      modified_at = now()
-      where id = $6
-      returning *
-    `,
-      [
-        input.info.metadata_question,
-        input.info.metadata_description,
-        input.info.is_active,
-        input.info.is_required,
-        req.user.id,
-        input.info.id,
-      ]
-    );
+    const { id, metadata_question, metadata_description, is_active, is_required } =
+      input.info;
 
-    if (!result) throw new Error("There was an error updating the input");
+    const {
+      rows: [updatedPublishedInput],
+    } = await pool.query(SQL_updatePublishedInput, [
+      metadata_question,
+      metadata_description,
+      is_active,
+      is_required,
+      req.user.id,
+      id,
+    ]);
 
-    return res.send(result.rows[0]);
+    if (!updatedPublishedInput) throw new Error("There was an error updating the input");
+
+    return res.status(200).send(updatedPublishedInput);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -1824,29 +1141,20 @@ export const editDraftInput = async (req: Request, res: Response) => {
         "There was no input included in request body while trying to delete"
       );
 
-    const result = await pool.query(
-      `
-      update draft_author_inputs
-      set metadata_question = $1,
-      metadata_description = $2,
-      is_active = $3,
-      is_required = $4,
-      modified_by_id = $5,
-      modified_at = now()
-      returning *
-    `,
-      [
-        input.info.metadata_question,
-        input.info.metadata_description,
-        input.info.is_active,
-        input.info.is_required,
-        req.user.id,
-      ]
-    );
+    const { metadata_question, metadata_description, is_active, is_required } =
+      input.info;
 
-    if (!result) throw new Error("There was an error updating the input");
+    const {
+      rows: [updatedDraftInput],
+    } = await pool.query(SQL_updateDraftInput, [
+      metadata_question,
+      metadata_description,
+      is_active,
+      is_required,
+      req.user.id,
+    ]);
 
-    return res.send(result.rows[0]);
+    return res.status(200).send(updatedDraftInput);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -1857,19 +1165,16 @@ export const editDraftInput = async (req: Request, res: Response) => {
 
 export const changeInputEnabledStatus = async (req: Request, res: Response) => {
   try {
-    const result = await pool.query(
-      `
-      update ${req.body.isDraft ? "draft_author_inputs" : "author_inputs"} 
-      set is_active = $1
-      where id = $2
-      returning *
-    `,
-      [req.body.newActiveStatus, req.params.inputId]
-    );
+    const {
+      rows: [updatedInput],
+    } = await pool.query(SQL_updateActiveStatusOnInput(req.body.isDraft), [
+      req.body.newActiveStatus,
+      req.params.inputId,
+    ]);
 
-    if (!result) throw new Error("There was an error deleting this form item from draft");
+    if (!updatedInput) throw new Error("Input was not updated");
 
-    return res.send(result.rows[0]);
+    return res.status(200).send(updatedInput);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -1880,222 +1185,72 @@ export const changeInputEnabledStatus = async (req: Request, res: Response) => {
 
 export const publishForm = async (req: Request, res: Response) => {
   try {
-    const result = await pool.query(
-      `
-      select * from forms
-      where draft_id = $1
-    `,
-      [req.body.draftFormId]
-    );
+    const {
+      rows: [existingPublishedForm],
+    } = await pool.query(SQL_getPublishedFormByDraftId, [req.body.draftFormId]);
 
-    if (!result.rows[0] /* if not already in forms table */) {
-      const result = await pool.query(
-        `
-        insert into forms (
-          draft_id,
-          title,
-          description,
-          passkey,
-          privacy_id,
-          is_deleted,
-          can_resubmit,
-          published_by_id,
-          published_at,
-          created_by_id,
-          created_at,
-          modified_by_id,
-          modified_at
-        )
-        select
-          a.id,
-          a.title,
-          a.description,
-          a.passkey,
-          a.privacy_id,
-          false,
-          a.can_resubmit,
-          $2,
-          now(),
-          a.created_by_id,
-          a.created_at,
-          null,
-          null
-        from draft_forms a
-        where a.id = $1
-        returning *
-      `,
-        [req.body.draftFormId, req.user.id]
-      );
+    if (!existingPublishedForm /* if not already in forms table */) {
+      const {
+        rows: [newlyPublishedForm],
+      } = await pool.query(SQL_publishDraftForm, [req.body.draftFormId, req.user.id]);
 
-      if (!result) throw new Error("Something went wrong when publishing the form");
+      if (!newlyPublishedForm) throw new Error("Form was not published");
 
-      const newForm = result.rows[0];
+      const { rowCount } = await pool.query(updatePublishedStatusOfDraftForm, [
+        req.body.draftFormId,
+      ]);
 
-      const result2 = await pool.query(
-        `
-        update draft_forms
-        set is_published = true
-        where id = $1
-      `,
-        [req.body.draftFormId]
-      );
-
-      if (!result2)
+      if (rowCount === 0)
         throw new Error("There was an error updating the draft's is_published property.");
 
-      const result3 = await pool.query(
-        `
-        insert into author_inputs (
-          draft_input_id,
-          input_type_id,
-          form_id,
-          metadata_question ,
-          metadata_description,
-          is_active,
-          is_deleted,
-          is_required,
-          published_at,
-          published_by_id,
-          created_at,
-          created_by_id,
-          modified_by_id,
-          modified_at
-        )
-        select
-          a.id,
-          a.input_type_id,
-          $1,
-          a.metadata_question,
-          a.metadata_description,
-          a.is_active,
-          a.is_deleted,
-          a.is_required,
-          now(),
-          $2,
-          a.created_at,
-          a.created_by_id,
-          a.modified_by_id,
-          a.modified_at
-        from draft_author_inputs a
-        where a.draft_form_id = $3
-        returning *
-      `,
-        [newForm.id, req.user.id, newForm.draft_id]
+      const { rows: newlyCreatedPublishedInputs } = await pool.query(
+        SQL_publishDraftInputs,
+        [newlyPublishedForm.id, req.user.id, newlyPublishedForm.draft_id]
       );
-
-      if (!result3)
-        throw new Error("There was a problem moving over draft user created inputs");
 
       let insertedPropertyInputs = 0;
 
       let alreadySentToClient = false;
 
-      result3.rows.forEach(async (input, i) => {
-        await pool.query(
-          `
-          insert into author_input_property_values (
-            created_input_id,
-            property_id,
-            input_type_id,
-            value,
-            published_at,
-            published_by_id,
-            created_at,
-            created_by_id,
-            modified_by_id,
-            modified_at
-          )
-          select
-            $1,
-            a.property_id,
-            a.input_type_id,
-            a.value,
-            now(),
-            $2,
-            a.created_at,
-            a.created_by_id,
-            null,
-            null
-          from draft_author_input_property_values a
-          inner join draft_author_inputs b
-          on a.created_input_id = b.id
-          inner join draft_forms c
-          on b.draft_form_id = c.id
-          where c.id = $3
-          and b.id = $4
-        `,
-          [input.id, req.user.id, newForm.draft_id, input.draft_input_id]
-        );
+      newlyCreatedPublishedInputs.forEach(async (input, i) => {
+        await pool.query(SQL_publishDraftInputProperties, [
+          input.id,
+          req.user.id,
+          newForm.draft_id,
+          input.draft_input_id,
+        ]);
 
         if (input.input_type_id === 6 /** Linear Scale */) {
-          await pool.query(
-            `
-              insert into author_linear_scales (
-                input_id,
-                min,
-                max,
-                created_at,
-                created_by_id
-              )
-              select
-                $1,
-                a.min,
-                a.max,
-                now(),
-                $2
-              from draft_author_linear_scales a
-              inner join draft_author_inputs b
-              on a.input_id = b.id
-              inner join draft_forms c
-              on b.draft_form_id = c.id
-              where c.id = $3
-              and b.id = $4
-            `,
-            [input.id, req.user.id, newForm.draft_id, input.draft_input_id]
-          );
+          await pool.query(publishLinearScales, [
+            input.id,
+            req.user.id,
+            newForm.draft_id,
+            input.draft_input_id,
+          ]);
         }
 
         if (input.input_type_id === 7 /** Multiple choice */) {
-          await pool.query(
-            `
-            insert into author_multiple_choice_options (
-              input_id,
-              label,
-              created_at,
-              created_by_id
-            )
-            select
-              $1,
-              a.label,
-              now(),
-              $2
-            from draft_author_multiple_choice_options a
-            inner join draft_author_inputs b
-            on a.input_id = b.id
-            inner join draft_forms c
-            on b.draft_form_id = c.id
-            where c.id = $3
-            and b.id = $4
-          `,
-            [input.id, req.user.id, newForm.draft_id, input.draft_input_id]
-          );
+          await pool.query(SQL_publishMultipleChoiceOptions, [
+            input.id,
+            req.user.id,
+            newlyPublishedForm.draft_id,
+            input.draft_input_id,
+          ]);
         }
 
         insertedPropertyInputs += 1;
 
-        if (insertedPropertyInputs === result3.rows.length) {
+        if (insertedPropertyInputs === newlyCreatedPublishedInputs.length) {
           alreadySentToClient = true;
-          return res.send(result.rows);
+          return res.status(200).send(newlyPublishedForm);
         }
       });
 
-      if (insertedPropertyInputs === 0 && !result3.rows.length) {
-        console.log("Swag 2");
-        return res.send(result.rows);
+      if (insertedPropertyInputs === 0 && !newlyCreatedPublishedInputs.length) {
+        return res.status(200).send(newlyPublishedForm);
       }
     } else {
-      console.log("Swag 3");
-      return res.send(result.rows);
+      return res.status(200).send(existingPublishedForm);
     }
   } catch (error) {
     console.error(error);
@@ -2110,42 +1265,25 @@ export const attemptPasskeyAccess = async (req: Request, res: Response) => {
     if (!req.body.formId) throw new Error("No form ID provided, cancelling...");
     if (!req.body.passkey) throw new Error("No passkey provided, cancelling...");
 
-    const result = await pool.query(
+    const {
+      rows: [matchingForm],
+    } = await pool.query(
       `
-      select * from forms
-      where id = $1
-      limit 1
+       
     `,
       [req.body.formId]
     );
 
-    if (!result) throw new Error("There was an error fetching the form");
-
-    if (!result.rows[0])
+    if (!matchingForm)
       throw new Error("Did not find a form matching the provided form ID");
 
-    const attemptValid = result.rows[0].passkey === req.body.passkey;
+    const attemptValid = matchingForm.passkey === req.body.passkey;
 
-    const result2 = await pool.query(
-      `
-      insert into passkey_attempts (
-      form_id,
-	    user_id,
-	    is_valid
-    ) values (
-      $1, 
-      $2,
-      $3
-    )
-    `,
-      [req.body.formId, req.user.id, attemptValid]
-    );
-
-    if (!result2) throw new Error("There was a problem adding this passkey attempt");
+    await pool.query(SQL_addPasskeyAttempt, [req.body.formId, req.user.id, attemptValid]);
 
     if (!attemptValid) throw new Error("Passkey did not match");
 
-    return res.send(result.rows[0]);
+    return res.status(200).send(matchingForm);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -2158,19 +1296,13 @@ export const deleteDraftForm = async (req: Request, res: Response) => {
   try {
     if (!req.params.formId) throw new Error("No form ID provided, cancelling deletion");
 
-    const result = await pool.query(
-      `
-      update draft_forms
-      set is_deleted = true
-      where id = $1
-      returning *
-    `,
-      [req.params.formId]
-    );
+    const {
+      rows: [updatedDraftForm],
+    } = await pool.query(SQL_deleteDraftForm, [req.params.formId]);
 
-    if (!result) throw new Error("There was an error deleting this draft form");
+    if (!updatedDraftForm) throw new Error("There was an error deleting this draft form");
 
-    return res.send(result.rows);
+    return res.status(200).send(updatedDraftForm);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -2183,19 +1315,14 @@ export const deletePublishedInput = async (req: Request, res: Response) => {
   try {
     if (!req.params.inputId) throw new Error("No input id provided, cancelling deletion");
 
-    const result = await pool.query(
-      `
-      update author_inputs
-      set is_deleted = true
-      where id = $1
-      returning *
-    `,
-      [req.params.inputId]
-    );
+    const {
+      rows: [updatedPublishedInput],
+    } = await pool.query(SQL_deletePublishedInput, [req.params.inputId]);
 
-    if (!result) throw new Error("There was an error deleting this draft form");
+    if (!updatedPublishedInput)
+      throw new Error("There was an error deleting this draft form");
 
-    return res.send(result.rows);
+    return res.status(200).send(updatedPublishedInput);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -2206,96 +1333,46 @@ export const deletePublishedInput = async (req: Request, res: Response) => {
 
 export const submitForm = async (req: Request, res: Response) => {
   try {
-    const result = await pool.query(
-      `
-      insert into form_submissions (
-        form_id,
-        created_at,
-        created_by_id
-      ) values (
-        $1,
-        now(),
-        $2 
-      )
-      returning *
-    `,
-      [req.body.formId, req.user.id]
-    );
+    const {
+      rows: [newFormSubmission],
+    } = await pool.query(SQL_addNewFormSubmission, [req.body.formId, req.user.id]);
 
-    if (!result) throw new Error("There was an error adding this form submission");
-
-    const submittedForm = result.rows[0];
-
-    if (!submittedForm) throw new Error("No submitted form was returned");
+    if (!newFormSubmission) throw new Error("No new form submission was returned");
 
     req.body.inputs.forEach(async (input) => {
       if (input.input_type_id === 6 /** Linear Scale */) {
-        await pool.query(
-          `
-          insert into submitted_linear_scale_values (
-            input_id,
-            submission_id,
-            linear_scale_id,
-            value,
-            user_id
-          ) values (
-            $1,
-            $2,
-            (select id from author_linear_scales where input_id = $1 limit 1),
-            $3,
-            $4
-          )
-        `,
-          [input.id, submittedForm.id, input.value, req.user.id]
-        );
+        await pool.query(SQL_submitLinearScale, [
+          input.id,
+          newFormSubmission.id,
+          input.value,
+          req.user.id,
+        ]);
       } else if (input.input_type_id === 7 /** Multiple choice */) {
         const selectedOptions = input.options.filter((option) => option.checked);
 
         selectedOptions.forEach(async (option) => {
-          await pool.query(
-            `
-            insert into submitted_multiple_choice_options (
-              input_id,
-              submission_id,
-              option_id,
-              user_id
-            ) values (
-              $1,
-              $2,
-              $3,
-              $4
-            )
-          `,
-            [option.input_id, submittedForm.id, option.id, req.user.id]
-          );
+          await pool.query(SQL_submitMultipleChoiceOption, [
+            option.input_id,
+            newFormSubmission.id,
+            option.id,
+            req.user.id,
+          ]);
         });
       }
-      const result = await pool.query(
-        `
-          insert into submitted_input_values
-          (
-            submission_id,
-            created_input_id, 
-            value, 
-            created_at, 
-            created_by_id
-          )
-          values
-          (
-            $1,
-            $2, 
-            $3, 
-            now(), 
-            $4
-          ) returning *;
-        `,
-        [submittedForm.id, input.id, input.value, req.user.id]
-      );
+      const {
+        rows: [submittedInputValues],
+      } = await pool.query(SQL_submitInputValue, [
+        newFormSubmission.id,
+        input.id,
+        input.value,
+        req.user.id,
+      ]);
 
-      if (!result) throw new Error("There was an issue inserting the input values");
+      if (!submittedInputValues)
+        throw new Error("There was an issue inserting the input values");
     });
 
-    return res.send(result.rows[0]);
+    return res.status(200).send(newFormSubmission);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -2308,19 +1385,14 @@ export const deletePublishedForm = async (req: Request, res: Response) => {
   try {
     if (!req.params.formId) throw new Error("No form ID provided, cancelling deletion");
 
-    const result = await pool.query(
-      `
-      update forms
-      set is_deleted = true
-      where id = $1
-      returning *
-    `,
-      [req.params.formId]
-    );
+    const {
+      rows: [updatedPublishedForm],
+    } = await pool.query(SQL_deletePublishedForm, [req.params.formId]);
 
-    if (!result) throw new Error("There was an error deleting this published form");
+    if (!updatedPublishedForm)
+      throw new Error("There was an error deleting this published form");
 
-    return res.send(result.rows);
+    return res.status(200).send(updatedPublishedForm);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
@@ -2333,20 +1405,7 @@ export const addFormView = async (req: Request, res: Response) => {
   try {
     if (!req.body.formId) throw new Error("No form ID provided, cancelling view add");
 
-    const result = await pool.query(
-      `
-      insert into views (
-        form_id,
-        user_id
-      ) values (
-        $1,
-        $2
-      )
-    `,
-      [req.body.formId, req.user?.id || null]
-    );
-
-    if (!result) throw new Error("There was an error adding this form view");
+    await pool.query(SQL_addFormView, [req.body.formId, req.user?.id || null]);
 
     return res.status(200).json({ message: "View successfully added" });
   } catch (error) {
@@ -2359,30 +1418,11 @@ export const addFormView = async (req: Request, res: Response) => {
 
 export const getRecentFormViews = async (req: Request, res: Response) => {
   try {
-    const result = await pool.query(
-      `
-      select 
-      a.form_id,
-      max(a.created_at) as max_created_at,
-      b.title,
-      c.picture profile_picture
-      from views a
-      inner join forms b
-      on a.form_id = b.id
-      inner join users c 
-      on b.created_by_id = c.id
-      where a.user_id = $1
-      and b.is_deleted = false
-      group by a.form_id, b.title, c.picture
-      order by max_created_at desc
-      limit 10
-    `,
-      [req.user?.id]
-    );
+    const { rows: recentFormViews } = await pool.query(SQL_getRecentFormViews, [
+      req.user?.id,
+    ]);
 
-    if (!result) throw new Error("There was an error getting recent views");
-
-    return res.status(200).send(result.rows);
+    return res.status(200).status(200).send(recentFormViews);
   } catch (error) {
     console.error(error);
     let message = parseErrorMessage(error);
