@@ -207,6 +207,16 @@ export const SQL_getPublishedLinearScales2 = `
   where b.form_id = $1
 `;
 
+export const SQL_getPublishedLinearScale = `
+  select * from author_linear_scales
+  where input_id = $1
+`;
+
+export const SQL_getPublishedMultipleChoiceOptions = `
+  select * from author_multiple_choice_options
+  where input_id = $1
+`;
+
 export const SQL_getPublishedForm = `
   select a.*, 
   b.needs_passkey,
@@ -279,7 +289,7 @@ export const SQL_getPublishedFormInputPropertyValues = `
   where c.form_id = $1
 `;
 
-export function SQL_getPublishedMultipleChoiceOptions(submissionId: string | null) {
+export function SQL_getManyPublishedMultipleChoiceOptions(submissionId: string | null) {
   return (
     `
       select a.*,
@@ -308,7 +318,7 @@ export function SQL_getPublishedMultipleChoiceOptions(submissionId: string | nul
   );
 }
 
-export const SQL_getPublishedMultipleChoiceOptions2 = `
+export const SQL_getManyPublishedMultipleChoiceOptions2 = `
   select a.id,
   a.input_id,
   a.label,
@@ -456,10 +466,15 @@ export const SQL_getSubmittedMultipleChoiceOptions = `
   where submission_id = $1
 `;
 
-export const SQL_getInput = `
-  select * from author_inputs
-  where id = $1
-  and created_by_id = $2
+export const SQL_getInputInfo = `
+  select a.*, 
+  b.name input_type_name,
+  b.description input_type_description 
+  from author_inputs a
+  inner join input_types b
+  on a.input_type_id = b.id
+  where a.id = $1
+  and a.created_by_id = $2
   limit 1
 `;
 
@@ -501,6 +516,10 @@ export const SQL_getSingleInputType = `
   select * from input_types
   where id = $1
   limit 1
+`;
+
+export const SQL_getAllDefaultInputTypes = `
+  select * from input_types
 `;
 
 export const SQL_renewDraftForm = `
@@ -598,6 +617,7 @@ export const SQL_addInputToPublishedForm = `
 with inserted as (
   insert into author_inputs
   (
+    draft_input_id,
     input_type_id,
     form_id,
     metadata_question,
@@ -615,12 +635,13 @@ with inserted as (
     $2,
     $3,
     $4,
-    true,
     $5,
-    now(),
+    true,
     $6,
     now(),
-    $6,
+    $7,
+    now(),
+    $7,
     null,
     null
   ) returning * 
@@ -936,7 +957,7 @@ export const SQL_deletePublishedForm = `
   set is_deleted = true
   where id = $1
   returning *
-`
+`;
 
 export const SQL_deletePublishedInput = `
   update author_inputs
@@ -986,9 +1007,9 @@ export const SQL_submitMultipleChoiceOption = `
       $3,
       $4
     )
-  `
+  `;
 
-  export const SQL_submitInputValue = `
+export const SQL_submitInputValue = `
     insert into submitted_input_values
     (
       submission_id,
@@ -1005,7 +1026,7 @@ export const SQL_submitMultipleChoiceOption = `
       now(), 
       $4
     ) returning *;
-  `
+  `;
 
 export const SQL_addFormView = `
   insert into views (
@@ -1015,7 +1036,7 @@ export const SQL_addFormView = `
     $1,
     $2
   )
-`
+`;
 
 export const SQL_getRecentFormViews = `
   select 
@@ -1033,4 +1054,4 @@ export const SQL_getRecentFormViews = `
   group by a.form_id, b.title, c.picture
   order by max_created_at desc
   limit 10
-`
+`;

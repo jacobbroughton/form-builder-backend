@@ -69,7 +69,7 @@ export async function getGoogleUser({
       }
     );
 
-    if (!response) throw new Error ("No response from googleapi")
+    if (!response) throw new Error("No response from googleapi");
 
     return response.data;
   } catch (error: any) {
@@ -96,6 +96,8 @@ export async function getNewAccessToken({
       refresh_token,
       grant_type: "refresh_token",
     });
+
+    if (!response) throw new Error ("No response from getNewAccessToken")
 
     return response.data;
   } catch (error: any) {
